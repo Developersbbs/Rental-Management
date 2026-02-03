@@ -84,6 +84,30 @@ const supplierService = {
       console.error('SupplierService Error:', errorMessage);
       throw new Error(errorMessage);
     }
+  },
+
+  // Record vendor payment
+  recordPayment: async (id, paymentData) => {
+    try {
+      const response = await axios.post(`/suppliers/${id}/payments`, paymentData);
+      return response.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to record payment';
+      console.error('SupplierService Error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+  },
+
+  // Get vendor payment history
+  getPaymentHistory: async (id, params = {}) => {
+    try {
+      const response = await axios.get(`/suppliers/${id}/payments`, { params });
+      return response.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Failed to fetch payment history';
+      console.error('SupplierService Error:', errorMessage);
+      throw new Error(errorMessage);
+    }
   }
 };
 

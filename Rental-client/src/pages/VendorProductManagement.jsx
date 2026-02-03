@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import supplierReportService from '../services/supplierReportService';
 import supplierService from '../services/supplierService';
-import { FaArrowLeft, FaBox, FaExclamationTriangle, FaCheckCircle, FaEdit, FaTrash } from 'react-icons/fa';
+import productService from '../services/productService';
+import { FaArrowLeft, FaBox, FaExclamationTriangle, FaCheckCircle, FaEdit, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
 import './VendorProductManagement.css';
 
 const VendorProductManagement = () => {
@@ -14,6 +16,18 @@ const VendorProductManagement = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+
+    // Edit Modal State
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingProduct, setEditingProduct] = useState(null);
+    const [editForm, setEditForm] = useState({
+        name: '',
+        price: '',
+        quantity: '',
+        category: '',
+        description: ''
+    });
+    const [updating, setUpdating] = useState(false);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
@@ -79,6 +93,55 @@ const VendorProductManagement = () => {
 
     const handlePageChange = (newPage) => {
         setPagination(prev => ({ ...prev, page: newPage }));
+    };
+
+    // Edit Handlers
+    const handleEditClick = (product) => {
+        setEditingProduct(product);
+        setEditForm({
+            name: product.name,
+            price: product.price,
+            quantity: product.quantity,
+            category: product.category?._id || product.category, // Handle populated or ID
+            description: product.description || ''
+        });
+        setShowEditModal(true);
+    };
+
+    const handleCloseEditModal = () => {
+        setEditingProduct(null);
+        setShowEditModal(false);
+        setEditForm({ name: '', price: '', quantity: '', category: '', description: '' });
+    };
+
+    const handleUpdateProduct = async (e) => {
+        e.preventDefault();
+        if (!editingProduct) return;
+
+        try {
+            setUpdating(true);
+            // Construct the update payload. 
+            // Note: Adjust fields based on what rentalProductService expects and what logic is needed.
+            // For simple updates like name/price/qty:
+            const updates = {
+                name: editForm.name,
+                price: parseFloat(editForm.price),
+                quantity: parseInt(editForm.quantity),
+                description: editForm.description
+                // Category usually not changed easily if it affects other things, but including if needed
+            };
+
+            await productService.updateProduct(editingProduct._id, updates);
+
+            toast.success('Product updated successfully');
+            handleCloseEditModal();
+            fetchProducts(); // Refresh list
+        } catch (err) {
+            console.error('Error updating product:', err);
+            toast.error(err.message || 'Failed to update product');
+        } finally {
+            setUpdating(false);
+        }
     };
 
     if (error && !supplier) {
@@ -180,7 +243,7 @@ const VendorProductManagement = () => {
                                         <td className="actions">
                                             <button
                                                 className="btn-action edit"
-                                                onClick={() => navigate(`/products/${product._id}/edit`)}
+                                                onClick={() => handleEditClick(product)}
                                                 title="Edit Product"
                                             >
                                                 <FaEdit />
@@ -218,6 +281,75 @@ const VendorProductManagement = () => {
                     )}
                 </>
             )}
+
+            {/* Edit Modal */}
+            {showEditModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content edit-product-modal">
+                        <div className="modal-header">
+                            <h2>Edit Product</h2>
+                            <button className="modal-close" onClick={handleCloseEditModal}>
+                                <FaTimes />
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateProduct}>
+                            <div className="modal-body">
+                                <div className="form-group">
+                                    <label>Product Name</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.name}
+                                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Price (₹)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={editForm.price}
+                                            onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Quantity</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={editForm.quantity}
+                                            onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                                            required
+                                            disabled // Often stock is managed via inward, disable if manual edit not allowed
+                                            title="Stock is managed via Inward"
+                                            className="disabled-input"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label>Description</label>
+                                    <textarea
+                                        value={editForm.description}
+                                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                                        rows="3"
+                                    />
+                                </div>
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" className="btn-secondary" onClick={handleCloseEditModal}>
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn-primary" disabled={updating}>
+                                    {updating ? 'Updating...' : <><FaSave /> Save Changes</>}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )
+            }
         </div>
     );
 };

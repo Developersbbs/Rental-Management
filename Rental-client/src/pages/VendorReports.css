@@ -181,6 +181,9 @@
     padding: 1.5rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .vendor-card:hover {
@@ -290,19 +293,22 @@
 .vendor-actions {
     display: flex;
     gap: 0.75rem;
+    margin-top: auto;
+    flex-wrap: wrap;
 }
 
 .vendor-actions button {
     flex: 1;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 0.5rem;
     border: none;
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
+    white-space: nowrap;
     transition: all 0.2s;
 }
 
@@ -500,7 +506,8 @@
 }
 
 .btn-primary,
-.btn-secondary {
+.btn-secondary,
+.btn-record-payment {
     padding: 0.75rem 1.5rem;
     border: none;
     border-radius: 8px;
@@ -820,4 +827,132 @@
 .payment-value.outstanding.has-balance {
     color: #e74c3c;
     font-weight: 700;
+}
+
+/* Modal Tabs */
+.modal-tabs {
+    display: flex;
+    border-bottom: 2px solid #ecf0f1;
+    margin-bottom: 1.5rem;
+}
+
+.tab-btn {
+    padding: 1rem 2rem;
+    border: none;
+    background: none;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #7f8c8d;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: #3498db;
+    background: #f8f9fa;
+}
+
+.tab-btn.active {
+    color: #3498db;
+    border-bottom-color: #3498db;
+}
+
+/* Payment History Tab */
+.payment-history-tab .no-data {
+    text-align: center;
+    color: #7f8c8d;
+    padding: 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.payment-history-tab .text-success {
+    color: #27ae60;
+}
+
+.payment-history-tab .font-bold {
+    font-weight: 600;
+}
+
+.payment-history-tab .capitalize {
+    text-transform: capitalize;
+}
+
+/* Record Payment Button */
+.btn-record-payment {
+    background: #9b59b6;
+    color: white;
+}
+
+.btn-record-payment:hover {
+    background: #8e44ad;
+}
+
+/* Payment Summary Box */
+.payment-summary-box {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    border: 1px solid #e9ecef;
+}
+
+.payment-summary-box .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.payment-summary-box label {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.payment-summary-box .amount {
+    font-size: 1.5rem;
+    color: #c0392b;
+    font-weight: 700;
+}
+
+.payment-summary-box .amount.has-balance {
+    color: #e74c3c;
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #dcdfe6;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.payment-modal {
+    max-width: 500px;
 }

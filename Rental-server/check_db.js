@@ -1,32 +1,53 @@
 const mongoose = require('mongoose');
-const RentalCategory = require('./models/RentalCategory');
-const RentalProduct = require('./models/RentalProduct');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const Inward = require('/home/sathish-r/Main-Peojects/Products/Rental-Management/Rental-server/models/Inward');
+const RentalSupplier = require('/home/sathish-r/Main-Peojects/Products/Rental-Management/Rental-server/models/RentalSupplier');
 
-const checkDB = async () => {
+async function check() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
+        const uri = process.env.MONGODB_URI;
+        console.log('URI loaded:', uri ? 'Yes' : 'No');
+        if (!uri) throw new Error('MONGODB_URI is undefined check .env file');
+
+        await mongoose.connect(uri);
         console.log('Connected to DB');
 
-        const categories = await RentalCategory.find({});
-        console.log('Categories:', JSON.stringify(categories, null, 2));
+        const vendor = await RentalSupplier.findOne({ name: 'Sbbs' });
+        if (!vendor) {
+            console.log('Vendor "Sbbs" not found. Listing all vendors:');
+            const vendors = await RentalSupplier.find({}, 'name');
+            console.log(vendors.map(v => v.name));
+            return;
+        }
+        console.log('Vendor ID:', vendor._id);
+        console.log('Vendor Outstanding Balance:', vendor.statistics ? vendor.statistics.outstandingBalance : 'N/A');
 
-        const products = await RentalProduct.find({});
-        console.log('Products:', JSON.stringify(products, null, 2));
+        // Find all inwards for this supplier
+        const inwards = await Inward.find({ supplier: vendor._id });
+        console.log('Total Inwards:', inwards.length);
+        inwards.forEach(i => {
+            console.log(`Inward ${i.invoiceNumber}: Status=${i.paymentStatus}, Paid=${i.paidAmount}, Due=${i.dueAmount}`);
+            if (i.paymentHistory && i.paymentHistory.length > 0) {
+                console.log('  Payment History:', JSON.stringify(i.paymentHistory));
+            }
+        });
 
-        const RentalInventoryItem = require('./models/RentalInventoryItem');
-        const items = await RentalInventoryItem.find({});
-        console.log('Rental Items:', JSON.stringify(items, null, 2));
+        // Check if any payment history exists aggregation style
+        const paymentHistory = await Inward.aggregate([
+            { $match: { supplier: vendor._id } },
+            { $unwind: '$paymentHistory' }
+        ]);
+        console.log('Aggregated Payment History Count:', paymentHistory.length);
+        if (paymentHistory.length > 0) {
+            console.log('First Payment:', JSON.stringify(paymentHistory[0].paymentHistory));
+        }
 
-        const RentalInward = require('./models/RentalInward');
-        const inwards = await RentalInward.find({});
-        console.log('Inwards:', JSON.stringify(inwards, null, 2));
-
-        process.exit(0);
-    } catch (error) {
-        console.error('Error:', error);
-        process.exit(1);
+    } catch (e) { console.error('Error:', e); }
+    finally {
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.disconnect();
+        }
     }
-};
-
-checkDB();
+}
+check();

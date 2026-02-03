@@ -28,6 +28,7 @@ const ManageRentalItems = () => {
         searchText: '',
         status: '',
         condition: '',
+        vendor: '',
         purchaseDateFrom: '',
         purchaseDateTo: ''
     });
@@ -218,6 +219,12 @@ const ManageRentalItems = () => {
         }
     };
 
+    // Get unique vendors from items for filter dropdown
+    const vendors = [...new Set([...items, ...archivedItems]
+        .filter(item => item.vendorId && item.vendorId._id)
+        .map(item => JSON.stringify({ id: item.vendorId._id, name: item.vendorId.name }))
+    )].map(v => JSON.parse(v));
+
     // Apply search filters
     const displayItems = viewMode === 'active' ? items : archivedItems;
     const filteredItems = displayItems.filter(item => {
@@ -238,6 +245,11 @@ const ManageRentalItems = () => {
 
         // Condition filter
         if (searchFilters.condition && item.condition !== searchFilters.condition) {
+            return false;
+        }
+
+        // Vendor filter
+        if (searchFilters.vendor && item.vendorId?._id !== searchFilters.vendor) {
             return false;
         }
 
@@ -369,12 +381,25 @@ const ManageRentalItems = () => {
                             <option value="damaged">Damaged</option>
                         </select>
                     </div>
+                    <div>
+                        <select
+                            value={searchFilters.vendor}
+                            onChange={(e) => setSearchFilters({ ...searchFilters, vendor: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white text-sm"
+                        >
+                            <option value="">All Vendors</option>
+                            {vendors.map(vendor => (
+                                <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                            ))}
+                        </select>
+                    </div>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setSearchFilters({
                                 searchText: '',
                                 status: '',
                                 condition: '',
+                                vendor: '',
                                 purchaseDateFrom: '',
                                 purchaseDateTo: ''
                             })}

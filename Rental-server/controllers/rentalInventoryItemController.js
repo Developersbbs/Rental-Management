@@ -14,6 +14,7 @@ exports.getAllItems = async (req, res) => {
                 }
             })
             .populate('inwardId', 'inwardNumber')
+            .populate('vendorId', 'name')
             .sort({ createdAt: -1 });
 
         res.status(200).json(items);
@@ -29,6 +30,7 @@ exports.getItemsByRentalProduct = async (req, res) => {
         const items = await RentalInventoryItem.find({ rentalProductId, isArchived: { $ne: true } })
             .populate('rentalProductId', 'name')
             .populate('inwardId', 'inwardNumber')
+            .populate('vendorId', 'name')
             .sort({ createdAt: -1 });
 
         res.status(200).json(items);
@@ -43,7 +45,8 @@ exports.getItemById = async (req, res) => {
         const { id } = req.params;
         const item = await RentalInventoryItem.findById(id)
             .populate('rentalProductId', 'name')
-            .populate('inwardId', 'inwardNumber');
+            .populate('inwardId', 'inwardNumber')
+            .populate('vendorId', 'name');
 
         if (!item) {
             return res.status(404).json({ message: 'Item not found' });
@@ -167,6 +170,7 @@ exports.getArchivedItems = async (req, res) => {
         const items = await RentalInventoryItem.find({ rentalProductId, isArchived: true })
             .populate('rentalProductId', 'name')
             .populate('inwardId', 'inwardNumber')
+            .populate('vendorId', 'name')
             .sort({ updatedAt: -1 });
 
         res.status(200).json(items);

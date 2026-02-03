@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supplierReportService from '../services/supplierReportService';
-import { FaBoxes, FaExclamationTriangle, FaDollarSign, FaChartBar, FaEye, FaCalendarAlt, FaDownload } from 'react-icons/fa';
+import { FaBoxes, FaExclamationTriangle, FaDollarSign, FaChartBar, FaEye, FaCalendarAlt, FaDownload, FaHistory, FaMoneyBillWave } from 'react-icons/fa';
 import './VendorReports.css';
+import supplierService from '../services/supplierService';
+import { toast } from 'react-toastify';
 
 const VendorReports = () => {
     const navigate = useNavigate();
@@ -17,6 +19,19 @@ const VendorReports = () => {
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [selectedInward, setSelectedInward] = useState(null);
     const [showInwardModal, setShowInwardModal] = useState(false);
+
+    // Payment related state
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentHistory, setPaymentHistory] = useState([]);
+    const [loadingPayments, setLoadingPayments] = useState(false);
+    const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'inwards', 'payments'
+    const [paymentForm, setPaymentForm] = useState({
+        amount: '',
+        paymentDate: new Date().toISOString().split('T')[0],
+        paymentMethod: 'bank_transfer',
+        transactionId: '',
+        notes: ''
+    });
 
     useEffect(() => {
         fetchSupplierReports();
@@ -51,6 +66,7 @@ const VendorReports = () => {
     };
 
     const handleViewDetails = (supplier) => {
+        setActiveTab('overview');
         fetchSupplierDetails(supplier._id);
     };
 
@@ -71,6 +87,56 @@ const VendorReports = () => {
     const closeInwardModal = () => {
         setSelectedInward(null);
         setShowInwardModal(false);
+    };
+
+    // Payment Functions
+    const fetchPaymentHistory = async (supplierId) => {
+        try {
+            setLoadingPayments(true);
+            const data = await supplierService.getPaymentHistory(supplierId);
+            setPaymentHistory(data.payments || []);
+        } catch (err) {
+            console.error('Error fetching payment history:', err);
+            toast.error('Failed to load payment history');
+        } finally {
+            setLoadingPayments(false);
+        }
+    };
+
+    const handleOpenPaymentModal = (supplier) => {
+        setSelectedSupplier(supplier);
+        setPaymentForm({
+            amount: '',
+            paymentDate: new Date().toISOString().split('T')[0],
+            paymentMethod: 'bank_transfer',
+            transactionId: '',
+            notes: ''
+        });
+        setShowPaymentModal(true);
+    };
+
+    const handleRecordPayment = async (e) => {
+        e.preventDefault();
+        try {
+            if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
+                toast.error('Please enter a valid amount');
+                return;
+            }
+
+            await supplierService.recordPayment(selectedSupplier._id, paymentForm);
+
+            toast.success('Payment recorded successfully');
+            setShowPaymentModal(false);
+
+            // Refresh data
+            fetchSupplierReports();
+            if (detailedReport && selectedSupplier._id === detailedReport._id) {
+                fetchSupplierDetails(selectedSupplier._id); // Refresh details if open
+            }
+        } catch (err) {
+            console.error('Error recording payment:', err);
+            toast.error(err.message || 'Failed to record payment');
+        }
     };
 
     // Download vendor reports as CSV
@@ -363,6 +429,12 @@ const VendorReports = () => {
                                     <FaEye /> View Details
                                 </button>
                                 <button
+                                    className="btn-record-payment"
+                                    onClick={() => handleOpenPaymentModal(supplier)}
+                                >
+                                    <FaMoneyBillWave /> Record Payment
+                                </button>
+                                <button
                                     className="btn-manage-products"
                                     onClick={() => handleViewProducts(supplier._id)}
                                 >
@@ -390,94 +462,165 @@ const VendorReports = () => {
                             </div>
                         ) : (
                             <div className="modal-body">
-                                {/* Detailed Statistics */}
-                                <div className="detail-stats-grid">
-                                    <div className="detail-stat">
-                                        <h4>Total Products</h4>
-                                        <p>{detailedReport.statistics.totalProducts}</p>
-                                    </div>
-                                    <div className="detail-stat">
-                                        <h4>In Stock</h4>
-                                        <p>{detailedReport.statistics.inStock}</p>
-                                    </div>
-                                    <div className="detail-stat warning">
-                                        <h4>Low Stock</h4>
-                                        <p>{detailedReport.statistics.lowStock}</p>
-                                    </div>
-                                    <div className="detail-stat danger">
-                                        <h4>Out of Stock</h4>
-                                        <p>{detailedReport.statistics.outOfStock}</p>
-                                    </div>
-                                    <div className="detail-stat">
-                                        <h4>Stock Value</h4>
-                                        <p>₹{detailedReport.statistics.totalStockValue.toLocaleString('en-IN')}</p>
-                                    </div>
-                                    <div className="detail-stat">
-                                        <h4>Total Inwards</h4>
-                                        <p>{detailedReport.statistics.totalInwards}</p>
-                                    </div>
+                                <div className="modal-tabs">
+                                    <button
+                                        className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+                                        onClick={() => setActiveTab('overview')}
+                                    >
+                                        Overview
+                                    </button>
+                                    <button
+                                        className={`tab-btn ${activeTab === 'payments' ? 'active' : ''}`}
+                                        onClick={() => {
+                                            setActiveTab('payments');
+                                            fetchPaymentHistory(selectedSupplier._id);
+                                        }}
+                                    >
+                                        Payment History
+                                    </button>
                                 </div>
 
-                                {/* Category Breakdown */}
-                                {Object.keys(detailedReport.categoryBreakdown).length > 0 && (
-                                    <div className="category-breakdown">
-                                        <h3>Category Breakdown</h3>
-                                        <div className="category-list">
-                                            {Object.entries(detailedReport.categoryBreakdown).map(([category, data]) => (
-                                                <div key={category} className="category-item">
-                                                    <span className="category-name">{category}</span>
-                                                    <span className="category-count">{data.count} products</span>
-                                                    <span className="category-value">₹{data.totalValue.toLocaleString('en-IN')}</span>
-                                                </div>
-                                            ))}
+                                {activeTab === 'overview' && (
+                                    <>
+                                        {/* Detailed Statistics */}
+                                        <div className="detail-stats-grid">
+                                            <div className="detail-stat">
+                                                <h4>Total Products</h4>
+                                                <p>{detailedReport.statistics.totalProducts}</p>
+                                            </div>
+                                            <div className="detail-stat">
+                                                <h4>In Stock</h4>
+                                                <p>{detailedReport.statistics.inStock}</p>
+                                            </div>
+                                            <div className="detail-stat warning">
+                                                <h4>Low Stock</h4>
+                                                <p>{detailedReport.statistics.lowStock}</p>
+                                            </div>
+                                            <div className="detail-stat danger">
+                                                <h4>Out of Stock</h4>
+                                                <p>{detailedReport.statistics.outOfStock}</p>
+                                            </div>
+                                            <div className="detail-stat">
+                                                <h4>Stock Value</h4>
+                                                <p>₹{detailedReport.statistics.totalStockValue.toLocaleString('en-IN')}</p>
+                                            </div>
+                                            <div className="detail-stat">
+                                                <h4>Total Inwards</h4>
+                                                <p>{detailedReport.statistics.totalInwards}</p>
+                                            </div>
                                         </div>
-                                    </div>
+
+                                        {/* Category Breakdown */}
+                                        {Object.keys(detailedReport.categoryBreakdown).length > 0 && (
+                                            <div className="category-breakdown">
+                                                <h3>Category Breakdown</h3>
+                                                <div className="category-list">
+                                                    {Object.entries(detailedReport.categoryBreakdown).map(([category, data]) => (
+                                                        <div key={category} className="category-item">
+                                                            <span className="category-name">{category}</span>
+                                                            <span className="category-count">{data.count} products</span>
+                                                            <span className="category-value">₹{data.totalValue.toLocaleString('en-IN')}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Recent Inwards */}
+                                        {detailedReport.inwardHistory && detailedReport.inwardHistory.length > 0 && (
+                                            <div className="recent-inwards">
+                                                <h3>Recent Inward History</h3>
+                                                <div className="inward-table">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>GRN Number</th>
+                                                                <th>Date</th>
+                                                                <th>Items</th>
+                                                                <th>Amount</th>
+                                                                <th>Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {detailedReport.inwardHistory.slice(0, 10).map((inward, index) => (
+                                                                <tr key={index}>
+                                                                    <td>
+                                                                        <span
+                                                                            className="grn-link"
+                                                                            onClick={() => handleViewInward(inward)}
+                                                                            title="Click to view details"
+                                                                        >
+                                                                            {inward.grnNumber || 'N/A'}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td>{new Date(inward.receivedDate || inward.createdAt).toLocaleDateString()}</td>
+                                                                    <td>{inward.items?.length || 0} item(s)</td>
+                                                                    <td>₹{inward.totalAmount?.toLocaleString('en-IN') || 0}</td>
+                                                                    <td>
+                                                                        <span className={`status-badge-small ${inward.status}`}>
+                                                                            {inward.status}
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
 
-                                {/* Recent Inwards */}
-                                {detailedReport.inwardHistory && detailedReport.inwardHistory.length > 0 && (
-                                    <div className="recent-inwards">
-                                        <h3>Recent Inward History</h3>
-                                        <div className="inward-table">
-                                            <table>
-                                                <thead>
-                                                    <tr>
-                                                        <th>GRN Number</th>
-                                                        <th>Date</th>
-                                                        <th>Items</th>
-                                                        <th>Amount</th>
-                                                        <th>Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {detailedReport.inwardHistory.slice(0, 10).map((inward, index) => (
-                                                        <tr key={index}>
-                                                            <td>
-                                                                <span
-                                                                    className="grn-link"
-                                                                    onClick={() => handleViewInward(inward)}
-                                                                    title="Click to view details"
-                                                                >
-                                                                    {inward.grnNumber || 'N/A'}
-                                                                </span>
-                                                            </td>
-                                                            <td>{new Date(inward.receivedDate || inward.createdAt).toLocaleDateString()}</td>
-                                                            <td>{inward.items?.length || 0} item(s)</td>
-                                                            <td>₹{inward.totalAmount?.toLocaleString('en-IN') || 0}</td>
-                                                            <td>
-                                                                <span className={`status-badge-small ${inward.status}`}>
-                                                                    {inward.status}
-                                                                </span>
-                                                            </td>
+                                {activeTab === 'payments' && (
+                                    <div className="payment-history-tab">
+                                        <h3>Payment History</h3>
+                                        {loadingPayments ? (
+                                            <div className="spinner-container">
+                                                <div className="spinner"></div>
+                                            </div>
+                                        ) : paymentHistory.length === 0 ? (
+                                            <p className="no-data">No payment history found.</p>
+                                        ) : (
+                                            <div className="inward-table">
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Date</th>
+                                                            <th>Amount</th>
+                                                            <th>Method</th>
+                                                            <th>Transaction ID</th>
+                                                            <th>Recorded By</th>
+                                                            <th>Notes</th>
                                                         </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                                    </thead>
+                                                    <tbody>
+                                                        {paymentHistory.map((payment, index) => (
+                                                            <tr key={index}>
+                                                                <td>{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                                <td className="text-success font-bold">₹{payment.amount.toLocaleString('en-IN')}</td>
+                                                                <td className="capitalize">{payment.paymentMethod.replace('_', ' ')}</td>
+                                                                <td>{payment.transactionId || '-'}</td>
+                                                                <td>{payment.recordedBy}</td>
+                                                                <td>{payment.notes || '-'}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
                                 <div className="modal-actions">
+                                    <button
+                                        className="btn-record-payment"
+                                        onClick={() => {
+                                            closeDetailModal();
+                                            handleOpenPaymentModal(selectedSupplier);
+                                        }}
+                                    >
+                                        <FaMoneyBillWave /> Record Payment
+                                    </button>
                                     <button
                                         className="btn-primary"
                                         onClick={() => handleViewProducts(selectedSupplier._id)}
@@ -490,6 +633,94 @@ const VendorReports = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Payment Recording Modal */}
+            {showPaymentModal && selectedSupplier && (
+                <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+                    <div className="modal-content payment-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Record Payment - {selectedSupplier.name}</h2>
+                            <button className="modal-close" onClick={() => setShowPaymentModal(false)}>×</button>
+                        </div>
+                        <form onSubmit={handleRecordPayment}>
+                            <div className="modal-body">
+                                <div className="payment-summary-box">
+                                    <div className="summary-item">
+                                        <label>Outstanding Balance</label>
+                                        <span className="amount">₹{(selectedSupplier.statistics?.outstandingBalance || 0).toLocaleString('en-IN')}</span>
+                                    </div>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Payment Amount (₹) *</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={paymentForm.amount}
+                                        onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                                        required
+                                        placeholder="Enter amount"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Payment Date *</label>
+                                    <input
+                                        type="date"
+                                        value={paymentForm.paymentDate}
+                                        onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Payment Method *</label>
+                                    <select
+                                        value={paymentForm.paymentMethod}
+                                        onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                                        required
+                                    >
+                                        <option value="cash">Cash</option>
+                                        <option value="bank_transfer">Bank Transfer</option>
+                                        <option value="upi">UPI</option>
+                                        <option value="card">Card</option>
+                                        <option value="credit">Credit / Adjustment</option>
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Transaction ID / Reference</label>
+                                    <input
+                                        type="text"
+                                        value={paymentForm.transactionId}
+                                        onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })}
+                                        placeholder="e.g. UTR Number, Cheque No."
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Notes</label>
+                                    <textarea
+                                        value={paymentForm.notes}
+                                        onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                                        placeholder="Optional notes..."
+                                        rows="2"
+                                    />
+                                </div>
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" className="btn-secondary" onClick={() => setShowPaymentModal(false)}>
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn-primary">
+                                    Record Payment
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

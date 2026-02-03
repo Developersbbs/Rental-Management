@@ -8,7 +8,9 @@ const {
   updateSupplier,
   deleteSupplier,
   getSuppliersStats,
-  getSupplierProducts
+  getSupplierProducts,
+  recordVendorPayment,
+  getVendorPaymentHistory
 } = require('../controllers/supplierController');
 const { protect, allowRoles } = require('../middlewares/authMiddlewares');
 
@@ -32,6 +34,12 @@ router.post('/', allowRoles('superadmin'), createSupplier);
 
 // PUT /api/suppliers/:id - Update supplier
 router.put('/:id', allowRoles('superadmin'), updateSupplier);
+
+// POST /api/suppliers/:id/payments - Record vendor payment
+router.post('/:id/payments', allowRoles('superadmin'), recordVendorPayment);
+
+// GET /api/suppliers/:id/payments - Get vendor payment history
+router.get('/:id/payments', allowRoles('superadmin', 'staff'), getVendorPaymentHistory);
 
 // DELETE /api/suppliers/:id - Delete supplier
 router.delete('/:id', allowRoles('superadmin'), deleteSupplier);

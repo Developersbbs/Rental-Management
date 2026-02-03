@@ -183,9 +183,9 @@ const InventoryReports = () => {
                                         </td>
                                         <td className="px-8 py-4 text-center">
                                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${item.status === 'available' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                                                    item.status === 'rented' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
-                                                        item.status === 'maintenance' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                                            'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                item.status === 'rented' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                                                    item.status === 'maintenance' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                        'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
                                                 }`}>
                                                 {item.status}
                                             </span>
@@ -468,8 +468,8 @@ const InventoryReports = () => {
                                             </td>
                                             <td className="px-8 py-4 text-center">
                                                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${detail.condition === 'damaged'
-                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
                                                     }`}>
                                                     {detail.condition}
                                                 </span>
@@ -495,6 +495,15 @@ const InventoryReports = () => {
         let csvContent = [];
         let filename = `inventory_report_${activeReport}_${new Date().toISOString().split('T')[0]}.csv`;
 
+        const escapeCsv = (str) => {
+            if (str === null || str === undefined) return '';
+            const stringValue = String(str);
+            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                return `"${stringValue.replace(/"/g, '""')}"`;
+            }
+            return stringValue;
+        };
+
         if (activeReport === 'status' && inventoryStatus) {
             csvContent.push('--- Inventory Status Report ---');
             csvContent.push(`Total Items,${inventoryStatus.summary?.total}`);
@@ -502,9 +511,27 @@ const InventoryReports = () => {
             csvContent.push(`Rented,${inventoryStatus.summary?.rented}`);
             csvContent.push(`In Maintenance,${inventoryStatus.summary?.maintenance}`);
             csvContent.push('');
-            csvContent.push('Identifier,Product,Status,Condition,Purchase Date,Purchase Cost');
+            csvContent.push('Identifier,Product,Status,Condition,Purchase Date,Purchase Cost,Vendor,Vendor Return Date,Vendor Rate (Hourly),Vendor Rate (Daily),Vendor Rate (Monthly)');
             inventoryStatus.items?.forEach(item => {
-                csvContent.push(`${item.uniqueIdentifier},${item.rentalProductId?.name || 'N/A'},${item.status},${item.condition},${new Date(item.purchaseDate).toLocaleDateString()},${item.purchaseCost}`);
+                const vendorName = item.vendorId?.name || 'N/A';
+                const vendorReturnDate = item.vendorReturnDate ? new Date(item.vendorReturnDate).toLocaleDateString('en-IN') : 'N/A';
+                const hourlyRate = item.vendorRentalRate?.hourly || 0;
+                const dailyRate = item.vendorRentalRate?.daily || 0;
+                const monthlyRate = item.vendorRentalRate?.monthly || 0;
+
+                csvContent.push([
+                    escapeCsv(item.uniqueIdentifier),
+                    escapeCsv(item.rentalProductId?.name || 'N/A'),
+                    escapeCsv(item.status),
+                    escapeCsv(item.condition),
+                    escapeCsv(new Date(item.purchaseDate).toLocaleDateString('en-IN')),
+                    item.purchaseCost,
+                    escapeCsv(vendorName),
+                    escapeCsv(vendorReturnDate),
+                    hourlyRate,
+                    dailyRate,
+                    monthlyRate
+                ].join(','));
             });
         } else if (activeReport === 'utilization' && utilization) {
             csvContent.push('--- Item Utilization Report ---');
@@ -541,7 +568,8 @@ const InventoryReports = () => {
         }
 
         if (csvContent.length > 0) {
-            const blob = new Blob([csvContent.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            // Add BOM for Excel compatibility
+            const blob = new Blob(['\uFEFF' + csvContent.join('\n')], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
@@ -588,8 +616,8 @@ const InventoryReports = () => {
                         key={tab.id}
                         onClick={() => setActiveReport(tab.id)}
                         className={`flex-shrink-0 flex items-center justify-center gap-3 py-3 px-6 rounded-2xl text-xs sm:text-sm font-black transition-all duration-300 ${activeReport === tab.id
-                                ? 'bg-white dark:bg-slate-800 text-primary shadow-xl scale-[1.02] transform'
-                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            ? 'bg-white dark:bg-slate-800 text-primary shadow-xl scale-[1.02] transform'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                             }`}
                     >
                         <tab.icon className={`w-4 h-4 ${activeReport === tab.id ? 'text-primary' : 'text-slate-400'}`} />
