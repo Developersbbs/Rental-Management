@@ -603,7 +603,7 @@ const getCategories = async (req, res) => {
   }
 };
 
-// @desc    Get low stock products  }
+// @desc    Get low stock products
 
 // @route   GET /api/products/low-stock
 // @access  Private/Admin
