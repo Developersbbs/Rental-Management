@@ -199,8 +199,14 @@ const RentalInwardHistory = () => {
                                     <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
                                         {inwards.map((inward) => (
                                             <tr key={inward._id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                                                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
-                                                    {inward.inwardNumber}
+                                                <td className="px-4 py-3 text-sm font-medium">
+                                                    <button
+                                                        onClick={() => navigate(`/rentals/inward/${inward._id}`)}
+                                                        className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0 font-medium"
+                                                        title="Click to view details"
+                                                    >
+                                                        {inward.inwardNumber}
+                                                    </button>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                                                     <div className="flex flex-col">

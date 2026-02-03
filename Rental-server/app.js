@@ -29,6 +29,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const serviceRecordRoutes = require('./routes/serviceRecordRoutes');
 const serviceAlertRoutes = require('./routes/serviceAlertRoutes');
 const paymentAccountRoutes = require('./routes/paymentAccountRoutes');
+const supplierReportRoutes = require('./routes/supplierReportRoutes');
 const { scheduleNotificationCleanup } = require('./utils/notificationCleanup');
 const { initializeRentalScheduler } = require('./utils/rentalScheduler');
 const cors = require("cors");
@@ -154,6 +155,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/service-records', serviceRecordRoutes);
 app.use('/api/service-alerts', serviceAlertRoutes);
 app.use('/api/payment-accounts', paymentAccountRoutes);
+app.use('/api/supplier-reports', supplierReportRoutes);
 const accessoryInwardRoutes = require('./routes/accessoryInwardRoutes');
 app.use('/api/accessory-inward', accessoryInwardRoutes);
 

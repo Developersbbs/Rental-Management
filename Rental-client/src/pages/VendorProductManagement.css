@@ -1,0 +1,370 @@
+/* VendorProductManagement.css */
+
+.vendor-products-container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    background: #f5f7fa;
+    min-height: 100vh;
+}
+
+/* Header */
+.vendor-products-header {
+    margin-bottom: 2rem;
+}
+
+.btn-back-small {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    color: #2c3e50;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    transition: all 0.2s;
+}
+
+.btn-back-small:hover {
+    background: #f8f9fa;
+    border-color: #3498db;
+    color: #3498db;
+}
+
+.supplier-info-header h1 {
+    font-size: 1.8rem;
+    color: #2c3e50;
+    margin: 0.5rem 0;
+}
+
+.supplier-contact {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+}
+
+/* Filters */
+.products-filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-filter {
+    flex: 1;
+    min-width: 250px;
+}
+
+.search-filter input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.search-filter input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.stock-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stock-filter label {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.stock-filter select {
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+/* Products Table */
+.products-table-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+}
+
+.products-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+}
+
+.products-table thead {
+    background: #f8f9fa;
+    border-bottom: 2px solid #ecf0f1;
+}
+
+.products-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.products-table tbody tr {
+    border-bottom: 1px solid #ecf0f1;
+    transition: background-color 0.2s;
+}
+
+.products-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.products-table td {
+    padding: 1rem;
+    color: #2c3e50;
+}
+
+.product-id {
+    font-family: monospace;
+    color: #7f8c8d;
+    font-size: 0.85rem;
+}
+
+.product-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.product-thumb {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.product-name {
+    font-weight: 500;
+}
+
+.price {
+    font-weight: 600;
+    color: #27ae60;
+}
+
+.quantity {
+    font-weight: 500;
+}
+
+/* Stock Status Badges */
+.stock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.stock-badge.in-stock {
+    background: #d4edda;
+    color: #155724;
+}
+
+.stock-badge.low-stock {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.stock-badge.out-of-stock {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Actions */
+.actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-action {
+    padding: 0.5rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 1rem;
+}
+
+.btn-action.edit {
+    background: #3498db;
+    color: white;
+}
+
+.btn-action.edit:hover {
+    background: #2980b9;
+}
+
+.btn-action.delete {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-action.delete:hover {
+    background: #c0392b;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-btn {
+    padding: 0.75rem 1.5rem;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: #2980b9;
+}
+
+.pagination-btn:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+}
+
+/* Empty States */
+.products-loading,
+.no-products,
+.vendor-products-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.no-products {
+    color: #7f8c8d;
+}
+
+.no-products svg {
+    color: #bdc3c7;
+    margin-bottom: 1rem;
+}
+
+.vendor-products-error {
+    color: #e74c3c;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.btn-back {
+    margin-top: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-back:hover {
+    background: #2980b9;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .vendor-products-container {
+        padding: 1rem;
+    }
+
+    .products-filters {
+        flex-direction: column;
+    }
+
+    .search-filter,
+    .stock-filter {
+        width: 100%;
+    }
+
+    .stock-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .products-table-container {
+        overflow-x: scroll;
+    }
+
+    .pagination {
+        flex-direction: column;
+    }
+
+    .pagination-info {
+        order: -1;
+        margin-bottom: 1rem;
+    }
+}

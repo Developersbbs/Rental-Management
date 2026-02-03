@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Save, ArrowLeft } from 'lucide-react';
 import rentalInwardService from '../../services/rentalInwardService';
-import supplierService from '../../services/supplierService';
+import supplierService from '../../services/supplierService'; // Assuming this service exists for RentalSuppliers
 import rentalProductService from '../../services/rentalProductService';
 import rentalCategoryService from '../../services/rentalCategoryService';
+import rentalSupplierService from '../../services/rentalSupplierService'; // Import rental supplier service
 
 const RentalInward = () => {
     const navigate = useNavigate();
@@ -13,12 +14,15 @@ const RentalInward = () => {
     const [success, setSuccess] = useState('');
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [suppliers, setSuppliers] = useState([]); // State for rental suppliers
     const [items, setItems] = useState([]);
 
     const [formData, setFormData] = useState({
         receivedDate: new Date().toISOString().split('T')[0],
         supplierInvoiceNumber: '',
-        notes: ''
+        notes: '',
+        inwardType: 'purchase', // 'purchase' or 'sub_rental'
+        supplier: '' // For sub_rental
     });
 
     // New state for current item being added
@@ -27,6 +31,11 @@ const RentalInward = () => {
         product: '',
         quantity: 1,
         purchaseCost: '',
+
+        // Sub-rental fields
+        vendorRentalRate: { hourly: 0, daily: 0, monthly: 0 },
+        vendorReturnDate: '',
+
         batchNumber: '',
         brand: '',
         modelNumber: '',
@@ -41,12 +50,14 @@ const RentalInward = () => {
 
     const fetchInitialData = async () => {
         try {
-            const [productsData, categoriesData] = await Promise.all([
+            const [productsData, categoriesData, suppliersData] = await Promise.all([
                 rentalProductService.getAllRentalProducts(),
-                rentalCategoryService.getAllRentalCategories()
+                rentalCategoryService.getAllRentalCategories(),
+                rentalSupplierService.getAllRentalSuppliers() // Fetch rental suppliers
             ]);
             setProducts(productsData.rentalProducts || []);
-            setCategories(categoriesData.rentalCategories || []); // Correctly access the array
+            setCategories(categoriesData.rentalCategories || []);
+            setSuppliers(suppliersData.rentalSuppliers || []); // Set suppliers
         } catch (err) {
             setError('Failed to load initial data');
             console.error('Error fetching data:', err);
@@ -62,26 +73,55 @@ const RentalInward = () => {
 
     const handleCurrentItemChange = (e) => {
         const { name, value } = e.target;
-        setCurrentItem(prev => ({
-            ...prev,
-            [name]: value,
-            // Reset product if category changes
-            ...(name === 'category' ? { product: '' } : {})
-        }));
+
+        if (name.startsWith('vendorRentalRate.')) {
+            const rateType = name.split('.')[1];
+            setCurrentItem(prev => ({
+                ...prev,
+                vendorRentalRate: {
+                    ...prev.vendorRentalRate,
+                    [rateType]: parseFloat(value) || 0
+                }
+            }));
+        } else {
+            setCurrentItem(prev => ({
+                ...prev,
+                [name]: value,
+                // Reset product if category changes
+                ...(name === 'category' ? { product: '' } : {})
+            }));
+        }
     };
 
     const addItem = () => {
-        if (!currentItem.product || !currentItem.quantity || !currentItem.purchaseCost || !currentItem.batchNumber) {
-            setError('Please fill in all required fields for the current item.');
+        // Validation based on inward type
+        if (!currentItem.product || !currentItem.quantity || !currentItem.batchNumber) {
+            setError('Please fill in product, quantity and batch number.');
             return;
         }
+
+        if (formData.inwardType === 'purchase' && !currentItem.purchaseCost) {
+            setError('Purchase cost is required for purchase inward.');
+            return;
+        }
+
+        // Optional: Add validation for vendor rental rate if needed
+
         setError('');
 
         const product = products.find(p => p._id === currentItem.product);
+
+        // Calculate total cost display
+        let totalCost = 0;
+        if (formData.inwardType === 'purchase') {
+            totalCost = currentItem.quantity * parseFloat(currentItem.purchaseCost || 0);
+        }
+        // For sub-rental, we might display 0 or daily rate total
+
         const newItem = {
             ...currentItem,
             productName: product?.name,
-            totalCost: currentItem.quantity * parseFloat(currentItem.purchaseCost)
+            totalCost: totalCost
         };
 
         setItems([...items, newItem]);
@@ -90,6 +130,10 @@ const RentalInward = () => {
             product: '',
             quantity: 1,
             purchaseCost: '',
+
+            vendorRentalRate: { hourly: 0, daily: 0, monthly: 0 },
+            vendorReturnDate: '',
+
             batchNumber: '',
             brand: '',
             modelNumber: '',
@@ -104,6 +148,7 @@ const RentalInward = () => {
     };
 
     const calculateTotal = () => {
+        if (formData.inwardType === 'sub_rental') return 0;
         return items.reduce((total, item) => {
             return total + (item.quantity * parseFloat(item.purchaseCost || 0));
         }, 0);
@@ -121,23 +166,33 @@ const RentalInward = () => {
             return;
         }
 
-        const validItems = items.filter(item => item.product && item.quantity > 0 && item.batchNumber && item.purchaseCost);
+        if (formData.inwardType === 'sub_rental' && !formData.supplier) {
+            setError('Please select a supplier for Vendor Rental.');
+            return;
+        }
+
+        const validItems = items.filter(item => item.product && item.quantity > 0 && item.batchNumber);
         if (validItems.length === 0) {
-            setError('Please ensure all added items have a product, quantity, batch number, and purchase cost.');
+            setError('Please ensure all added items have valid details.');
             return;
         }
 
         try {
             setLoading(true);
-            const totalAmount = items.reduce((sum, item) => sum + item.totalCost, 0);
+            const totalAmount = calculateTotal();
 
             const inwardData = {
+                inwardType: formData.inwardType,
+                supplier: formData.inwardType === 'sub_rental' ? formData.supplier : undefined,
                 receivedDate: formData.receivedDate,
                 supplierInvoiceNumber: formData.supplierInvoiceNumber,
                 items: validItems.map(item => ({
                     product: item.product,
                     quantity: item.quantity,
-                    purchaseCost: parseFloat(item.purchaseCost),
+                    purchaseCost: formData.inwardType === 'purchase' ? parseFloat(item.purchaseCost) : undefined,
+                    vendorRentalRate: formData.inwardType === 'sub_rental' ? item.vendorRentalRate : undefined,
+                    vendorReturnDate: formData.inwardType === 'sub_rental' ? item.vendorReturnDate : undefined,
+                    ownershipType: formData.inwardType === 'sub_rental' ? 'sub_rented' : 'owned',
                     batchNumber: item.batchNumber,
                     brand: item.brand,
                     modelNumber: item.modelNumber,
@@ -158,7 +213,10 @@ const RentalInward = () => {
 
             setFormData({
                 receivedDate: new Date().toISOString().split('T')[0],
-                notes: ''
+                supplierInvoiceNumber: '',
+                notes: '',
+                inwardType: 'purchase',
+                supplier: ''
             });
             setItems([]);
             setCurrentItem({
@@ -166,6 +224,8 @@ const RentalInward = () => {
                 product: '',
                 quantity: 1,
                 purchaseCost: '',
+                vendorRentalRate: { hourly: 0, daily: 0, monthly: 0 },
+                vendorReturnDate: '',
                 batchNumber: '',
                 brand: '',
                 modelNumber: '',
@@ -179,18 +239,11 @@ const RentalInward = () => {
             }, 1500);
         } catch (err) {
             console.error('❌ Error creating rental inward:', err);
-            console.error('Error details:', {
-                message: err.message,
-                response: err.response?.data,
-                status: err.response?.status,
-                statusText: err.response?.statusText
-            });
-
-            // Extract the most specific error message available
+            // ... error handling
             const errorMessage = err.response?.data?.message
                 || err.response?.data?.error
                 || err.message
-                || 'Failed to create rental inward. Please check the console for details.';
+                || 'Failed to create rental inward.';
 
             setError(errorMessage);
         } finally {
@@ -236,6 +289,43 @@ const RentalInward = () => {
                 )}
 
                 <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+                    {/* Inward Type Selection */}
+                    <div className="mb-6 border-b border-gray-200 dark:border-slate-700 pb-6">
+                        <label className="block text-lg font-medium text-gray-900 dark:text-white mb-4">
+                            Inward Type
+                        </label>
+                        <div className="flex gap-4">
+                            <label className={`flex-1 p-4 border rounded-lg cursor-pointer transition-colors ${formData.inwardType === 'purchase' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-700 hover:border-blue-300'}`}>
+                                <input
+                                    type="radio"
+                                    name="inwardType"
+                                    value="purchase"
+                                    checked={formData.inwardType === 'purchase'}
+                                    onChange={handleFormChange}
+                                    className="hidden"
+                                />
+                                <div className="text-center">
+                                    <span className={`block font-semibold ${formData.inwardType === 'purchase' ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>Owned Inventory (Purchase)</span>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">Products owned by us</span>
+                                </div>
+                            </label>
+                            <label className={`flex-1 p-4 border rounded-lg cursor-pointer transition-colors ${formData.inwardType === 'sub_rental' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-slate-700 hover:border-purple-300'}`}>
+                                <input
+                                    type="radio"
+                                    name="inwardType"
+                                    value="sub_rental"
+                                    checked={formData.inwardType === 'sub_rental'}
+                                    onChange={handleFormChange}
+                                    className="hidden"
+                                />
+                                <div className="text-center">
+                                    <span className={`block font-semibold ${formData.inwardType === 'sub_rental' ? 'text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300'}`}>Vendor Rental (Sub-rental)</span>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">Products rented from other vendors</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -250,11 +340,33 @@ const RentalInward = () => {
                                 className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
                             />
                         </div>
+
+                        {formData.inwardType === 'sub_rental' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Vendor (Supplier) *
+                                </label>
+                                <select
+                                    name="supplier"
+                                    value={formData.supplier}
+                                    onChange={handleFormChange}
+                                    required
+                                    className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                >
+                                    <option value="">Select Vendor</option>
+                                    {suppliers.map(supplier => (
+                                        <option key={supplier._id} value={supplier._id}>
+                                            {supplier.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     <div className="mb-6">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Supplier Invoice Number
+                            Supplier Invoice / Ref Number
                         </label>
                         <input
                             type="text"
@@ -339,21 +451,65 @@ const RentalInward = () => {
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Purchase Cost (₹) *
-                                </label>
-                                <input
-                                    type="number"
-                                    name="purchaseCost"
-                                    value={currentItem.purchaseCost}
-                                    onChange={handleCurrentItemChange}
-                                    min="0"
-                                    step="0.01"
-                                    required
-                                    className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                                />
-                            </div>
+                            {formData.inwardType === 'purchase' ? (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Purchase Cost (₹) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="purchaseCost"
+                                        value={currentItem.purchaseCost}
+                                        onChange={handleCurrentItemChange}
+                                        min="0"
+                                        step="0.01"
+                                        required
+                                        className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                    />
+                                </div>
+                            ) : (
+                                // Vendor Rental Fields
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Daily Rent (₹)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="vendorRentalRate.daily"
+                                            value={currentItem.vendorRentalRate.daily}
+                                            onChange={handleCurrentItemChange}
+                                            min="0"
+                                            className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Monthly Rent (₹)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="vendorRentalRate.monthly"
+                                            value={currentItem.vendorRentalRate.monthly}
+                                            onChange={handleCurrentItemChange}
+                                            min="0"
+                                            className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Return Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            name="vendorReturnDate"
+                                            value={currentItem.vendorReturnDate}
+                                            onChange={handleCurrentItemChange}
+                                            className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                        />
+                                    </div>
+                                </>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -372,7 +528,7 @@ const RentalInward = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Purchase Date
+                                    Purchase/Start Date
                                 </label>
                                 <input
                                     type="date"
@@ -483,10 +639,17 @@ const RentalInward = () => {
                                                 <span className="text-gray-600 dark:text-gray-400">Quantity:</span>
                                                 <span className="ml-2 font-medium text-gray-900 dark:text-white">{item.quantity}</span>
                                             </div>
-                                            <div>
-                                                <span className="text-gray-600 dark:text-gray-400">Purchase Cost:</span>
-                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">₹{item.purchaseCost}</span>
-                                            </div>
+                                            {formData.inwardType === 'purchase' ? (
+                                                <div>
+                                                    <span className="text-gray-600 dark:text-gray-400">Purchase Cost:</span>
+                                                    <span className="ml-2 font-medium text-gray-900 dark:text-white">₹{item.purchaseCost}</span>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <span className="text-gray-600 dark:text-gray-400">Daily Rent:</span>
+                                                    <span className="ml-2 font-medium text-gray-900 dark:text-white">₹{item.vendorRentalRate?.daily || 0}</span>
+                                                </div>
+                                            )}
                                             <div>
                                                 <span className="text-gray-600 dark:text-gray-400">Batch:</span>
                                                 <span className="ml-2 font-medium text-gray-900 dark:text-white">{item.batchNumber}</span>
@@ -496,16 +659,25 @@ const RentalInward = () => {
                                                 <span className="ml-2 font-medium text-gray-900 dark:text-white capitalize">{item.condition}</span>
                                             </div>
                                         </div>
+                                        {/* Show extra details for sub-rental */}
+                                        {formData.inwardType === 'sub_rental' && (
+                                            <div className="mt-2 text-sm">
+                                                <span className="text-gray-600 dark:text-gray-400">Return Date: </span>
+                                                <span className="ml-2 font-medium text-gray-900 dark:text-white">{item.vendorReturnDate || 'N/A'}</span>
+                                            </div>
+                                        )}
                                         {item.notes && (
                                             <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                                                 <span className="font-medium">Notes:</span> {item.notes}
                                             </div>
                                         )}
-                                        <div className="mt-3 text-right">
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Item Total: ₹{item.totalCost.toFixed(2)}
-                                            </span>
-                                        </div>
+                                        {formData.inwardType === 'purchase' && (
+                                            <div className="mt-3 text-right">
+                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                    Item Total: ₹{item.totalCost.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             )}
@@ -518,9 +690,11 @@ const RentalInward = () => {
                                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                                     Total Items: {items.length}
                                 </p>
-                                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                    Total Amount: ₹{calculateTotal().toFixed(2)}
-                                </p>
+                                {formData.inwardType === 'purchase' && (
+                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                        Total Amount: ₹{calculateTotal().toFixed(2)}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>

@@ -1,12 +1,12 @@
 // controllers/supplierController.js
-const Supplier = require('../models/Supplier');
+const Supplier = require('../models/RentalSupplier');
 const Product = require('../models/Product');
 
 // Get all suppliers
 exports.getAllSuppliers = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, status } = req.query;
-    
+
     // Build filter object
     const filter = {};
     if (search) {
@@ -19,14 +19,14 @@ exports.getAllSuppliers = async (req, res) => {
     if (status) {
       filter.status = status;
     }
-    
+
     const suppliers = await Supplier.find(filter)
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
-    
+
     const total = await Supplier.countDocuments(filter);
-    
+
     res.status(200).json({
       suppliers,
       totalPages: Math.ceil(total / limit),
@@ -43,11 +43,11 @@ exports.getSupplierById = async (req, res) => {
   try {
     const { id } = req.params;
     const supplier = await Supplier.findById(id);
-    
+
     if (!supplier) {
       return res.status(404).json({ message: 'Supplier not found' });
     }
-    
+
     res.status(200).json(supplier);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -58,19 +58,19 @@ exports.getSupplierById = async (req, res) => {
 exports.createSupplier = async (req, res) => {
   try {
     const supplierData = req.body;
-    
+
     // Check if supplier with email already exists
     const existingSupplier = await Supplier.findOne({ email: supplierData.email });
     if (existingSupplier) {
       return res.status(400).json({ message: 'Supplier with this email already exists' });
     }
-    
+
     const supplier = new Supplier(supplierData);
     await supplier.save();
-    
-    res.status(201).json({ 
+
+    res.status(201).json({
       message: 'Supplier created successfully',
-      supplier 
+      supplier
     });
   } catch (err) {
     if (err.code === 11000) {
@@ -85,32 +85,32 @@ exports.updateSupplier = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    
+
     // If email is being updated, check if it's already taken by another supplier
     if (updates.email) {
-      const existingSupplier = await Supplier.findOne({ 
-        email: updates.email, 
-        _id: { $ne: id } 
+      const existingSupplier = await Supplier.findOne({
+        email: updates.email,
+        _id: { $ne: id }
       });
-      
+
       if (existingSupplier) {
         return res.status(400).json({ message: 'Supplier with this email already exists' });
       }
     }
-    
+
     const supplier = await Supplier.findByIdAndUpdate(
-      id, 
-      updates, 
+      id,
+      updates,
       { new: true, runValidators: true }
     );
-    
+
     if (!supplier) {
       return res.status(404).json({ message: 'Supplier not found' });
     }
-    
-    res.status(200).json({ 
-      message: 'Supplier updated successfully', 
-      supplier 
+
+    res.status(200).json({
+      message: 'Supplier updated successfully',
+      supplier
     });
   } catch (err) {
     if (err.code === 11000) {
@@ -124,13 +124,13 @@ exports.updateSupplier = async (req, res) => {
 exports.deleteSupplier = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const supplier = await Supplier.findByIdAndDelete(id);
-    
+
     if (!supplier) {
       return res.status(404).json({ message: 'Supplier not found' });
     }
-    
+
     res.status(200).json({ message: 'Supplier deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

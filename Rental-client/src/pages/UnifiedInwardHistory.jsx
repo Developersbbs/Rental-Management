@@ -276,8 +276,14 @@ const UnifiedInwardHistory = () => {
                                     <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                                         {(activeTab === 'rental' ? rentalInwards : accessoryInwards).map((inward) => (
                                             <tr key={inward._id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary hover:text-primary/80 transition-colors">
-                                                    {inward.inwardNumber}
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                    <button
+                                                        onClick={() => navigate(`/rentals/inward/${inward._id}`)}
+                                                        className="text-primary hover:text-primary/80 transition-colors cursor-pointer bg-transparent border-0 p-0 font-medium hover:underline"
+                                                        title="Click to view details"
+                                                    >
+                                                        {inward.inwardNumber}
+                                                    </button>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                                     <div className="flex flex-col">

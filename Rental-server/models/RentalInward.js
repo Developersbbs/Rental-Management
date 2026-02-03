@@ -6,10 +6,16 @@ const rentalInwardSchema = new mongoose.Schema({
         unique: true,
         required: true
     },
+    inwardType: {
+        type: String,
+        enum: ['purchase', 'sub_rental'],
+        default: 'purchase',
+        required: true
+    },
     supplier: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Supplier',
-        required: false  // Made optional as supplier is being removed
+        ref: 'RentalSupplier', // Changed to RentalSupplier
+        required: function () { return this.inwardType === 'sub_rental'; }
     },
     receivedDate: {
         type: Date,
@@ -19,7 +25,7 @@ const rentalInwardSchema = new mongoose.Schema({
     items: [{
         product: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'RentalProduct',  // Changed to RentalProduct
+            ref: 'RentalProduct',
             required: true
         },
         quantity: {
@@ -27,10 +33,25 @@ const rentalInwardSchema = new mongoose.Schema({
             required: true,
             min: 1
         },
-        purchaseCost: {  // Renamed from unitCost
+        // For Purchase
+        purchaseCost: {
             type: Number,
-            required: true,
-            min: 0
+            min: 0,
+            required: function () { return this.ownerDocument().inwardType === 'purchase'; }
+        },
+        // For Sub-rental
+        vendorRentalRate: {
+            hourly: { type: Number, min: 0, default: 0 },
+            daily: { type: Number, min: 0, default: 0 },
+            monthly: { type: Number, min: 0, default: 0 }
+        },
+        vendorReturnDate: {
+            type: Date
+        },
+        ownershipType: {
+            type: String,
+            enum: ['owned', 'sub_rented'],
+            default: 'owned'
         },
         batchNumber: {
             type: String,
@@ -44,10 +65,9 @@ const rentalInwardSchema = new mongoose.Schema({
             type: String,
             trim: true
         },
-        purchaseDate: {  // Renamed from manufacturingDate
+        purchaseDate: {
             type: Date
         },
-        // expiryDate removed as it's not needed for rental products
         condition: {
             type: String,
             enum: ['new', 'good', 'fair'],

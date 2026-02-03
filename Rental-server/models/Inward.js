@@ -127,7 +127,52 @@ const inwardSchema = new mongoose.Schema({
   rejectionReason: {
     type: String,
     trim: true
-  }
+  },
+  // Payment Tracking Fields
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'partial'],
+    default: 'pending'
+  },
+  paidAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  dueAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  paymentHistory: [{
+    amount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    paymentMethod: {
+      type: String,
+      enum: ['cash', 'card', 'upi', 'bank_transfer', 'credit'],
+      required: true
+    },
+    paymentDate: {
+      type: Date,
+      default: Date.now
+    },
+    transactionId: {
+      type: String,
+      trim: true
+    },
+    notes: {
+      type: String,
+      trim: true
+    },
+    recordedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }]
+
 }, {
   timestamps: true
 });
@@ -141,14 +186,14 @@ inwardSchema.index({ receivedDate: -1 });
 inwardSchema.index({ status: 1, createdAt: -1 });
 
 // Create a counter collection for GRN numbers
-const Counter = mongoose.models.Counter || 
+const Counter = mongoose.models.Counter ||
   mongoose.model('Counter', new mongoose.Schema({
     _id: { type: String, required: true },
     seq: { type: Number, default: 0 }
   }));
 
 // Generate GRN number before validation
-inwardSchema.pre('validate', async function(next) {
+inwardSchema.pre('validate', async function (next) {
   if (this.isNew && !this.grnNumber) {
     try {
       console.log('🔢 Generating GRN number...');
@@ -157,14 +202,14 @@ inwardSchema.pre('validate', async function(next) {
       const month = String(today.getMonth() + 1).padStart(2, '0');
       const day = String(today.getDate()).padStart(2, '0');
       const dateStr = `${year}${month}${day}`;
-      
+
       // Find and increment the counter for today's date
       const counter = await Counter.findByIdAndUpdate(
         { _id: `grn_${dateStr}` },
         { $inc: { seq: 1 } },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
-      
+
       this.grnNumber = `GRN-${dateStr}-${String(counter.seq).padStart(4, '0')}`;
       console.log('✅ Generated GRN number:', this.grnNumber);
     } catch (error) {
@@ -176,7 +221,7 @@ inwardSchema.pre('validate', async function(next) {
 });
 
 // Add error handling for duplicate GRN numbers
-inwardSchema.post('save', function(error, doc, next) {
+inwardSchema.post('save', function (error, doc, next) {
   if (error.name === 'MongoServerError' && error.code === 11000) {
     // If it's a duplicate key error for grnNumber
     if (error.keyPattern && error.keyPattern.grnNumber) {
@@ -189,7 +234,7 @@ inwardSchema.post('save', function(error, doc, next) {
 });
 
 // Calculate item totals and total amount before saving
-inwardSchema.pre('save', function(next) {
+inwardSchema.pre('save', function (next) {
   if (this.isModified('items')) {
     // Calculate individual item totals
     this.items.forEach(item => {
@@ -199,11 +244,37 @@ inwardSchema.pre('save', function(next) {
     // Calculate total amount
     this.totalAmount = this.items.reduce((total, item) => total + item.total, 0);
   }
+
+  // Calculate payment status and due amount (runs after totalAmount is set)
+  // Only run on new documents or when payment fields change
+  if (this.isNew || this.isModified('paidAmount') || this.isModified('paymentHistory')) {
+    // Set due amount on new documents
+    if (this.isNew && this.dueAmount === 0) {
+      this.dueAmount = this.totalAmount || 0;
+    }
+
+    // Update payment status based on paid amount
+    const paidAmt = this.paidAmount || 0;
+    const totalAmt = this.totalAmount || 0;
+
+    if (paidAmt === 0) {
+      this.paymentStatus = 'pending';
+      this.dueAmount = totalAmt;
+    } else if (paidAmt >= totalAmt && totalAmt > 0) {
+      this.paymentStatus = 'paid';
+      this.dueAmount = 0;
+      this.paidAmount = totalAmt; // Cap at total amount
+    } else if (paidAmt > 0) {
+      this.paymentStatus = 'partial';
+      this.dueAmount = totalAmt - paidAmt;
+    }
+  }
+
   next();
 });
 
 // Virtual for completion percentage
-inwardSchema.virtual('completionPercentage').get(function() {
+inwardSchema.virtual('completionPercentage').get(function () {
   if (!this.items || this.items.length === 0) return 0;
 
   const totalItems = this.items.length;
@@ -215,27 +286,27 @@ inwardSchema.virtual('completionPercentage').get(function() {
 });
 
 // Virtual for pending items
-inwardSchema.virtual('pendingItems').get(function() {
+inwardSchema.virtual('pendingItems').get(function () {
   return this.items.filter(item => item.receivedQuantity < item.orderedQuantity);
 });
 
 // Instance method to check if inward can be modified
-inwardSchema.methods.canBeModified = function() {
+inwardSchema.methods.canBeModified = function () {
   return !['approved', 'completed', 'cancelled'].includes(this.status);
 };
 
 // Instance method to check if inward can be approved
-inwardSchema.methods.canBeApproved = function() {
+inwardSchema.methods.canBeApproved = function () {
   return this.status === 'pending' || this.status === 'draft';
 };
 
 // Static method to get inwards by status
-inwardSchema.statics.findByStatus = function(status, options = {}) {
+inwardSchema.statics.findByStatus = function (status, options = {}) {
   return this.find({ status }, null, options);
 };
 
 // Static method to get inwards by date range
-inwardSchema.statics.findByDateRange = function(startDate, endDate, options = {}) {
+inwardSchema.statics.findByDateRange = function (startDate, endDate, options = {}) {
   return this.find({
     receivedDate: {
       $gte: startDate,

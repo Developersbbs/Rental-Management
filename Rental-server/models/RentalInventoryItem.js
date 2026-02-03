@@ -39,6 +39,25 @@ const rentalInventoryItemSchema = new mongoose.Schema({
         type: Number,
         min: 0
     },
+    // Sub-rental fields
+    ownershipType: {
+        type: String,
+        enum: ['owned', 'sub_rented'],
+        default: 'owned',
+        index: true
+    },
+    vendorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'RentalSupplier'
+    },
+    vendorRentalRate: {
+        hourly: { type: Number, min: 0, default: 0 },
+        daily: { type: Number, min: 0, default: 0 },
+        monthly: { type: Number, min: 0, default: 0 }
+    },
+    vendorReturnDate: {
+        type: Date
+    },
     inwardId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'RentalInward'

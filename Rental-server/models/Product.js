@@ -35,6 +35,11 @@ const productSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  purchaseCost: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
@@ -130,7 +135,19 @@ productSchema.virtual('stockStatus').get(function () {
   return 'in_stock';
 });
 
+// Add virtuals for profit calculations
+productSchema.virtual('profit').get(function () {
+  if (!this.purchaseCost || this.purchaseCost === 0) return 0;
+  return this.price - this.purchaseCost;
+});
+
+productSchema.virtual('profitMargin').get(function () {
+  if (!this.purchaseCost || this.purchaseCost === 0) return 0;
+  return ((this.price - this.purchaseCost) / this.purchaseCost) * 100;
+});
+
 // Ensure virtual fields are included in JSON output
 productSchema.set('toJSON', { virtuals: true });
+productSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Product', productSchema, 'products');

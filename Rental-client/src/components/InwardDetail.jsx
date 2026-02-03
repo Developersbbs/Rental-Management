@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const InwardDetail = ({
   inward,
@@ -291,11 +292,19 @@ const InwardDetail = ({
                 <tbody className="bg-gray-100 divide-y divide-gray-200">
                   {inward.items.map((item, index) => {
                     const product = getProductDetails(item);
+                    const productId = item.product && (typeof item.product === 'object' ? item.product._id : (/^[0-9a-fA-F]{24}$/.test(item.product) ? item.product : null));
+
                     return (
                       <tr key={index}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
-                            {product.name}
+                            {productId ? (
+                              <Link to={`/rentals/products/${productId}/items`} className="text-blue-600 hover:underline">
+                                {product.name}
+                              </Link>
+                            ) : (
+                              product.name
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

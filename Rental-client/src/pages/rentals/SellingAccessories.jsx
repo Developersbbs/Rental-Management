@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Archive, Trash2, Edit2, Package, Tag, Save, X } from 'lucide-react';
+import { Plus, Search, Archive, Trash2, Edit2, Package, Tag, Save, X, TrendingUp, TrendingDown } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import productService from '../../services/productService';
 import { Link } from 'react-router-dom';
@@ -23,6 +23,7 @@ const SellingAccessories = () => {
         category: '', // Was 'Accessories'
         quantity: 0,
         price: '',
+        purchaseCost: '',
         sku: '',
         minStockLevel: 5,
         location: '',
@@ -186,6 +187,7 @@ const SellingAccessories = () => {
             category: product.category ? (typeof product.category === 'object' ? product.category._id : product.category) : '',
             quantity: product.quantity,
             price: product.price,
+            purchaseCost: product.purchaseCost || '',
             sku: product.sku || '',
             minStockLevel: product.minStockLevel || 5,
             location: product.location || '',
@@ -216,6 +218,7 @@ const SellingAccessories = () => {
             category: '',
             quantity: 0,
             price: '',
+            purchaseCost: '',
             sku: '',
             minStockLevel: 5,
             location: '',
@@ -267,14 +270,16 @@ const SellingAccessories = () => {
                                 <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product Name</th>
                                 <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">SKU</th>
                                 <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Stock</th>
-                                <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Price</th>
+                                <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Purchase</th>
+                                <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Selling</th>
+                                <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Profit</th>
                                 {isSuperAdmin && <th className="p-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                             {filteredProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan="5" className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                    <td colSpan="7" className="p-8 text-center text-gray-500 dark:text-gray-400">
                                         <div className="flex flex-col items-center justify-center">
                                             <Package className="w-12 h-12 text-gray-300 mb-2" />
                                             <p>No selling accessories found</p>
@@ -282,42 +287,58 @@ const SellingAccessories = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredProducts.map((product) => (
-                                    <tr key={product._id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                                        <td className="p-4">
-                                            <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
-                                            {product.description && <div className="text-xs text-gray-500 truncate max-w-[200px]">{product.description}</div>}
-                                        </td>
-                                        <td className="p-4 text-sm text-gray-600 dark:text-gray-300">{product.sku || '-'}</td>
-                                        <td className="p-4">
-                                            <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.quantity <= (product.minStockLevel || 5)
-                                                ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                                : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                                }`}>
-                                                {product.quantity} units
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-sm font-medium text-gray-900 dark:text-white">₹{product.price}</td>
-                                        {isSuperAdmin && (
-                                            <td className="p-4 text-right space-x-2">
-                                                <button
-                                                    onClick={() => handleEdit(product)}
-                                                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(product._id)}
-                                                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                filteredProducts.map((product) => {
+                                    const profit = (product.price || 0) - (product.purchaseCost || 0);
+                                    const profitMargin = product.purchaseCost > 0 ? ((profit / product.purchaseCost) * 100) : 0;
+                                    return (
+                                        <tr key={product._id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                                            <td className="p-4">
+                                                <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
+                                                {product.description && <div className="text-xs text-gray-500 truncate max-w-[200px]">{product.description}</div>}
                                             </td>
-                                        )}
-                                    </tr>
-                                ))
+                                            <td className="p-4 text-sm text-gray-600 dark:text-gray-300">{product.sku || '-'}</td>
+                                            <td className="p-4">
+                                                <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.quantity <= (product.minStockLevel || 5)
+                                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                                    }`}>
+                                                    {product.quantity} units
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-sm text-gray-600 dark:text-gray-400">₹{product.purchaseCost || 0}</td>
+                                            <td className="p-4 text-sm font-medium text-gray-900 dark:text-white">₹{product.price}</td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col">
+                                                    <span className={`text-sm font-semibold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                        ₹{profit.toFixed(2)}
+                                                    </span>
+                                                    <div className={`inline-flex items-center gap-1 text-xs font-medium mt-0.5 ${profitMargin >= 30 ? 'text-green-600' : profitMargin >= 15 ? 'text-yellow-600' : profitMargin > 0 ? 'text-orange-600' : 'text-red-600'}`}>
+                                                        {profit >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                        <span>{profitMargin.toFixed(1)}%</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            {isSuperAdmin && (
+                                                <td className="p-4 text-right space-x-2">
+                                                    <button
+                                                        onClick={() => handleEdit(product)}
+                                                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(product._id)}
+                                                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
@@ -395,6 +416,18 @@ const SellingAccessories = () => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purchase Cost (₹)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={formData.purchaseCost}
+                                        onChange={(e) => setFormData({ ...formData, purchaseCost: e.target.value })}
+                                        className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring"
+                                        placeholder="Cost per unit"
+                                    />
+                                </div>
+                                <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selling Price (₹) *</label>
                                     <input
                                         type="number"
@@ -406,15 +439,41 @@ const SellingAccessories = () => {
                                         className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
-                                    <input
-                                        type="text"
-                                        value={formData.location}
-                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                        className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring"
-                                    />
+                            </div>
+
+                            {formData.purchaseCost && formData.price && (
+                                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Profit Per Unit</p>
+                                            <p className={`text-lg font-bold ${(parseFloat(formData.price) - parseFloat(formData.purchaseCost)) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                ₹{(parseFloat(formData.price || 0) - parseFloat(formData.purchaseCost || 0)).toFixed(2)}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Profit Margin</p>
+                                            <div className="inline-flex items-center gap-1">
+                                                {(parseFloat(formData.price) - parseFloat(formData.purchaseCost)) >= 0 ?
+                                                    <TrendingUp className="w-4 h-4 text-green-600" /> :
+                                                    <TrendingDown className="w-4 h-4 text-red-600" />
+                                                }
+                                                <span className={`text-lg font-bold ${parseFloat(formData.purchaseCost) > 0 && (((parseFloat(formData.price) - parseFloat(formData.purchaseCost)) / parseFloat(formData.purchaseCost)) * 100) >= 30 ? 'text-green-600' : parseFloat(formData.purchaseCost) > 0 && (((parseFloat(formData.price) - parseFloat(formData.purchaseCost)) / parseFloat(formData.purchaseCost)) * 100) >= 15 ? 'text-yellow-600' : 'text-orange-600'}`}>
+                                                    {parseFloat(formData.purchaseCost) > 0 ? (((parseFloat(formData.price || 0) - parseFloat(formData.purchaseCost || 0)) / parseFloat(formData.purchaseCost)) * 100).toFixed(1) : 0}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+                                <input
+                                    type="text"
+                                    value={formData.location}
+                                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                    className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring"
+                                />
                             </div>
 
                             <div className="pt-4 flex justify-end gap-3 border-t dark:border-slate-700 mt-2">

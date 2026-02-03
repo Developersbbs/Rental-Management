@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
 import rentalInwardService from '../../services/rentalInwardService';
 
@@ -123,7 +123,13 @@ const RentalInwardDetails = () => {
                                 {inward.items?.map((item, index) => (
                                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                            {item.product?.name || 'Unknown Product'}
+                                            {item.product?._id ? (
+                                                <Link to={`/rentals/products/${item.product._id}/items`} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline">
+                                                    {item.product.name}
+                                                </Link>
+                                            ) : (
+                                                item.product?.name || 'Unknown Product'
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                             {item.batchNumber}

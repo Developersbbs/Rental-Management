@@ -46,6 +46,7 @@ const RentalProducts = () => {
     // Filter and search states
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("");
+    const [ownershipFilter, setOwnershipFilter] = useState(""); // New: filter by ownership type
 
     // File upload states
     const [uploading, setUploading] = useState(false);
@@ -59,7 +60,7 @@ const RentalProducts = () => {
             fetchProducts();
             fetchCategories();
         }
-    }, [token]);
+    }, [token, searchTerm, categoryFilter, ownershipFilter]); // Added ownershipFilter to trigger refetch
 
     const fetchProducts = async () => {
         setLoading(true);
@@ -67,6 +68,7 @@ const RentalProducts = () => {
             const data = await rentalProductService.getAllRentalProducts({
                 search: searchTerm,
                 category: categoryFilter,
+                ownershipType: ownershipFilter, // Add ownership filter
                 status: 'active' // Optional: filter by active status
             });
             setProducts(data.rentalProducts || []);
@@ -235,12 +237,21 @@ const RentalProducts = () => {
                         <select
                             value={categoryFilter}
                             onChange={(e) => setCategoryFilter(e.target.value)}
-                            className="premium-input md:w-64"
+                            className="premium-input md:w-48"
                         >
                             <option value="">All Categories</option>
                             {categories.map(c => (
                                 <option key={c._id} value={c._id}>{c.name}</option>
                             ))}
+                        </select>
+                        <select
+                            value={ownershipFilter}
+                            onChange={(e) => setOwnershipFilter(e.target.value)}
+                            className="premium-input md:w-56"
+                        >
+                            <option value="">All Items</option>
+                            <option value="owned">Inventory Products</option>
+                            <option value="sub_rented">Vendor Products</option>
                         </select>
                     </div>
                 </CardContent>

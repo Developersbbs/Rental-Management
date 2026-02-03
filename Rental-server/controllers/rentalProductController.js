@@ -43,7 +43,7 @@ exports.createRentalProduct = async (req, res) => {
 // Get all rental products
 exports.getAllRentalProducts = async (req, res) => {
     try {
-        const { page = 1, limit = 10, category, status, search } = req.query;
+        const { page = 1, limit = 10, category, status, search, ownershipType } = req.query;
 
         const filter = {};
         if (category) filter.category = category;
@@ -64,15 +64,36 @@ exports.getAllRentalProducts = async (req, res) => {
             .lean();
 
         // Calculate available quantity for each product
-        const rentalProducts = await Promise.all(rentalProductsDocs.map(async (product) => {
-            const availableCount = await RentalInventoryItem.countDocuments({
+        // Filter products by ownership type if specified
+        const rentalProducts = (await Promise.all(rentalProductsDocs.map(async (product) => {
+            const itemFilter = {
                 rentalProductId: product._id,
                 status: 'available'
-            });
-            return { ...product, availableQuantity: availableCount };
-        }));
+            };
 
-        const total = await RentalProduct.countDocuments(filter);
+            // Add ownership type filter if specified
+            if (ownershipType) {
+                itemFilter.ownershipType = ownershipType;
+            }
+
+            const availableCount = await RentalInventoryItem.countDocuments(itemFilter);
+
+            // If ownership type is specified and product has no items of that type, return null
+            if (ownershipType) {
+                const totalItemsOfType = await RentalInventoryItem.countDocuments({
+                    rentalProductId: product._id,
+                    ownershipType: ownershipType
+                });
+                // Skip product if it has no items of this ownership type
+                if (totalItemsOfType === 0) {
+                    return null;
+                }
+            }
+
+            return { ...product, availableQuantity: availableCount };
+        }))).filter(p => p !== null); // Remove null entries
+
+        const total = rentalProducts.length; // Use filtered count
 
         res.status(200).json({
             rentalProducts,

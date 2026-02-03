@@ -21,8 +21,11 @@ const rentalSupplierSchema = new mongoose.Schema({
         trim: true
     },
     address: {
-        type: String,
-        trim: true
+        street: String,
+        city: String,
+        state: String,
+        zipCode: String,
+        country: String
     },
     gst: {
         type: String,

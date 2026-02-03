@@ -16,7 +16,7 @@ exports.createRentalInward = async (req, res) => {
             });
         }
 
-        const { receivedDate, items, notes } = req.body;
+        const { receivedDate, items, notes, inwardType, supplier, supplierInvoiceNumber } = req.body;
 
         // Validate items and calculate total
         let totalAmount = 0;
@@ -29,13 +29,30 @@ exports.createRentalInward = async (req, res) => {
                 return res.status(404).json({ message: `Rental product not found: ${item.product}` });
             }
 
-            const itemTotal = item.quantity * item.purchaseCost;
+            // Calculate total based on inward type
+            let itemTotal = 0;
+            if (inwardType === 'purchase') {
+                if (!item.purchaseCost) {
+                    return res.status(400).json({ message: 'Purchase cost is required for purchase inward' });
+                }
+                itemTotal = item.quantity * item.purchaseCost;
+            } else if (inwardType === 'sub_rental') {
+                // For sub-rental, total amount might be calculated differently or just tracked
+                // Here we might want to track expected cost, but for now we can set it to 0 or
+                // calculate based on estimated duration if provided.
+                // For simplicity, we'll store 0 as immediate cost, but track rental rates
+                itemTotal = 0;
+            }
+
             totalAmount += itemTotal;
 
             validatedItems.push({
                 product: item.product,
                 quantity: item.quantity,
                 purchaseCost: item.purchaseCost,
+                vendorRentalRate: item.vendorRentalRate,
+                vendorReturnDate: item.vendorReturnDate,
+                ownershipType: inwardType === 'sub_rental' ? 'sub_rented' : 'owned',
                 batchNumber: item.batchNumber,
                 purchaseDate: item.purchaseDate,
                 condition: item.condition || 'new',
@@ -50,8 +67,11 @@ exports.createRentalInward = async (req, res) => {
         // Create rental inward record first
         const rentalInward = new RentalInward({
             inwardNumber,
-            receivedDate: Date.now(), // Use current timestamp instead of form date
+            inwardType: inwardType || 'purchase',
+            supplier: inwardType === 'sub_rental' ? supplier : undefined,
+            receivedDate: receivedDate || Date.now(),
             items: validatedItems,
+            supplierInvoiceNumber,
             totalAmount,
             notes,
             receivedBy: req.user._id,
@@ -90,6 +110,12 @@ exports.createRentalInward = async (req, res) => {
                     condition: item.condition || 'new',
                     purchaseDate: item.purchaseDate || Date.now(),
                     purchaseCost: item.purchaseCost,
+                    // Sub-rental fields
+                    ownershipType: item.ownershipType,
+                    vendorId: inwardType === 'sub_rental' ? supplier : undefined,
+                    vendorRentalRate: item.vendorRentalRate,
+                    vendorReturnDate: item.vendorReturnDate,
+
                     inwardId: rentalInward._id,
                     batchNumber: item.batchNumber,
                     notes: item.notes,

@@ -40,6 +40,7 @@ import UnifiedInward from './pages/UnifiedInward'
 import UnifiedInwardHistory from './pages/UnifiedInwardHistory'
 
 import RentalCustomers from './pages/rentals/RentalCustomers'
+import ManageRentalSuppliers from './pages/rentals/ManageRentalSuppliers'
 import RentalCategories from './pages/rentals/RentalCategories'
 import ManageProductItems from './pages/ManageProductItems'
 import ManageRentalItems from './pages/rentals/ManageRentalItems'
@@ -53,8 +54,8 @@ import CustomerDetails from './pages/CustomerDetails'
 import PaymentAccounts from './pages/PaymentAccounts';
 import PaymentAccountDetails from './pages/PaymentAccountDetails';
 import RentalCustomerDetails from './pages/rentals/RentalCustomerDetails'
-
-
+import VendorReports from './pages/VendorReports'
+import VendorProductManagement from './pages/VendorProductManagement'
 
 const App = () => {
   const dispatch = useDispatch();
@@ -177,6 +178,10 @@ const App = () => {
         },
 
         {
+          path: '/rentals/suppliers',
+          element: <ProtectedRoute><ManageRentalSuppliers /></ProtectedRoute>
+        },
+        {
           path: '/rentals/customers',
           element: <ProtectedRoute><RentalCustomers /></ProtectedRoute>
         },
@@ -216,6 +221,14 @@ const App = () => {
         {
           path: '/service-maintenance',
           element: <ProtectedRoute><ServiceMaintenance /></ProtectedRoute>
+        },
+        {
+          path: '/vendor-reports',
+          element: <ProtectedRoute><VendorReports /></ProtectedRoute>
+        },
+        {
+          path: '/vendor-reports/:supplierId/products',
+          element: <ProtectedRoute><VendorProductManagement /></ProtectedRoute>
         }
       ]
     }

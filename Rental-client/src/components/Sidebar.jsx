@@ -79,6 +79,7 @@ const Sidebar = ({ onNavigate }) => {
     const rentals = [
       { to: "/rentals/new", icon: "➕", label: "New Rental" },
       { to: "/rentals/active", icon: "📋", label: "Active Rentals" },
+      { to: "/rentals/suppliers", icon: "🏭", label: "Rental Vendors" },
       { to: "/rentals/inward", icon: "📥", label: "Rental Inward" },
       { to: "/rentals/inward-history", icon: "📜", label: "Inward History" },
       { to: "/rentals/products", icon: "📦", label: "Rental Products" },
@@ -87,8 +88,9 @@ const Sidebar = ({ onNavigate }) => {
       { to: "/rentals/categories", icon: "🏷️", label: "Rental Categories" },
       { to: "/rentals/billing-history", icon: "🧾", label: "Billing History" },
       { to: "/payment-accounts", icon: "💳", label: "Payment Accounts" },
+      { to: "/vendor-reports", icon: "📊", label: "Vendor Reports" },
       { to: "/service-maintenance", icon: "🔧", label: "Service & Maintenance" },
-      { to: "/reports", icon: "📊", label: "Reports & Analytics" }
+      { to: "/reports", icon: "📈", label: "Reports & Analytics" }
     ]
     // Inventory items removed as per user request for "Rental Only" application
 
