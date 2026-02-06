@@ -20,7 +20,8 @@ import {
     getRevenueReport,
     getTransactionReport,
     getOutstandingDuesReport,
-    getPaymentMethodAnalysis
+    getPaymentMethodAnalysis,
+    getRentalProfitReport
 } from '../../services/reportService';
 
 const FinancialReports = () => {
@@ -30,6 +31,7 @@ const FinancialReports = () => {
     const [transactions, setTransactions] = useState(null);
     const [outstandingDues, setOutstandingDues] = useState(null);
     const [paymentMethods, setPaymentMethods] = useState(null);
+    const [profitData, setProfitData] = useState(null);
 
     const [filters, setFilters] = useState({
         startDate: '',
@@ -62,6 +64,10 @@ const FinancialReports = () => {
                 case 'payment-methods':
                     const pmResponse = await getPaymentMethodAnalysis(filters);
                     if (pmResponse.success) setPaymentMethods(pmResponse.data);
+                    break;
+                case 'profit':
+                    const profitResponse = await getRentalProfitReport(filters);
+                    if (profitResponse.success) setProfitData(profitResponse.data);
                     break;
             }
         } catch (error) {
@@ -427,6 +433,112 @@ const FinancialReports = () => {
         );
     };
 
+    const renderProfitReport = () => {
+        if (!profitData) return null;
+
+        return (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-indigo-600">
+                                <Banknote className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Investment</span>
+                        </div>
+                        <h4 className="text-xl font-black text-slate-800 dark:text-white">{formatCurrency(profitData.summary?.totalInvestment)}</h4>
+                    </div>
+
+                    <div className="p-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600">
+                                <TrendingUp className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Revenue</span>
+                        </div>
+                        <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-500">{formatCurrency(profitData.summary?.totalRevenue)}</h4>
+                    </div>
+
+                    <div className="p-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600">
+                                <Banknote className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Net Profit</span>
+                        </div>
+                        <h4 className={`text-xl font-black ${profitData.summary?.netProfit >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                            {formatCurrency(profitData.summary?.netProfit)}
+                        </h4>
+                    </div>
+
+                    <div className="p-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-600">
+                                <PieChart className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avg ROI</span>
+                        </div>
+                        <h4 className="text-xl font-black text-slate-800 dark:text-white">{profitData.summary?.averageROI?.toFixed(2)}%</h4>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-50 dark:border-slate-700/50 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-indigo-500" />
+                        <h3 className="font-bold text-slate-800 dark:text-white">Product Profitability</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Product</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Inv / Count</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Investment</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Revenue</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Profit</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">ROI</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                {profitData.products?.map((item) => (
+                                    <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold text-slate-800 dark:text-slate-200 text-sm">{item.productName}</div>
+                                            <div className="text-xs text-slate-500">{item.categoryName}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                                                {item.inventoryCount} Units
+                                            </div>
+                                            <div className="text-[10px] text-slate-400">
+                                                Rented {item.rentalCount} times
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right text-xs font-medium text-slate-600 dark:text-slate-400">
+                                            {formatCurrency(item.totalInvestment)}
+                                        </td>
+                                        <td className="px-6 py-4 text-right text-xs font-bold text-emerald-600">
+                                            {formatCurrency(item.totalRevenue)}
+                                        </td>
+                                        <td className={`px-6 py-4 text-right text-xs font-black ${item.netProfit >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                                            {formatCurrency(item.netProfit)}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className={`inline-block px-2 py-1 rounded-md text-[10px] font-bold ${item.roi >= 100 ? 'bg-emerald-100 text-emerald-700' :
+                                                item.roi > 0 ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                {item.roi.toFixed(1)}%
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const handleExport = () => {
         let csvContent = [];
         let filename = `financial_report_${activeReport}_${new Date().toISOString().split('T')[0]}.csv`;
@@ -472,6 +584,17 @@ const FinancialReports = () => {
             csvContent.push('Method,Total Amount,Count,Average Transaction');
             paymentMethods.forEach(method => {
                 csvContent.push(`${method._id},${method.totalAmount},${method.count},${method.averageTransaction}`);
+            });
+        } else if (activeReport === 'profit' && profitData) {
+            csvContent.push('--- Rental Profit Analysis ---');
+            csvContent.push(`Total Investment,${profitData.summary?.totalInvestment}`);
+            csvContent.push(`Total Revenue,${profitData.summary?.totalRevenue}`);
+            csvContent.push(`Net Profit,${profitData.summary?.netProfit}`);
+            csvContent.push(`Average ROI,${profitData.summary?.averageROI}%`);
+            csvContent.push('');
+            csvContent.push('Product,Category,Inventory Count,Rental Count,Total Investment,Total Revenue,Net Profit,ROI %');
+            profitData.products?.forEach(item => {
+                csvContent.push(`${item.productName.replace(/,/g, '')},${item.categoryName.replace(/,/g, '')},${item.inventoryCount},${item.rentalCount},${item.totalInvestment},${item.totalRevenue},${item.netProfit},${item.roi}`);
             });
         }
 
@@ -539,7 +662,8 @@ const FinancialReports = () => {
                     { id: 'revenue', icon: TrendingUp, label: 'Revenue Insights' },
                     { id: 'transactions', icon: History, label: 'Transaction Logs' },
                     { id: 'dues', icon: AlertCircle, label: 'Outstanding Dues' },
-                    { id: 'payment-methods', icon: CreditCard, label: 'Payment Channels' }
+                    { id: 'payment-methods', icon: CreditCard, label: 'Payment Channels' },
+                    { id: 'profit', icon: Banknote, label: 'Profit Analysis' }
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -567,6 +691,7 @@ const FinancialReports = () => {
                 {!loading && activeReport === 'transactions' && renderTransactionReport()}
                 {!loading && activeReport === 'dues' && renderOutstandingDues()}
                 {!loading && activeReport === 'payment-methods' && renderPaymentMethods()}
+                {!loading && activeReport === 'profit' && renderProfitReport()}
             </div>
         </div>
     );

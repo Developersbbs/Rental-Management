@@ -322,3 +322,105 @@ exports.getSupplierComparison = async (req, res) => {
         });
     }
 };
+
+/**
+ * Download products CSV for a specific supplier
+ * GET /api/supplier-reports/:supplierId/products/csv
+ */
+exports.getSupplierProductsCSV = async (req, res) => {
+    try {
+        const { supplierId } = req.params;
+
+        // Validate supplier ID
+        if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid supplier ID'
+            });
+        }
+
+        // Get supplier details
+        const supplier = await Supplier.findById(supplierId).select('name').lean();
+        if (!supplier) {
+            return res.status(404).json({
+                success: false,
+                message: 'Supplier not found'
+            });
+        }
+
+        // Get all products for this supplier
+        const products = await Product.find({ supplier: supplierId })
+            .populate('category', 'name')
+            .sort({ name: 1 })
+            .lean();
+
+        // Define CSV headers
+        const headers = [
+            'Product ID',
+            'Name',
+            'Category',
+            'Description',
+            'HSN Code',
+            'Unit',
+            'Price',
+            'Quantity',
+            'Reorder Level',
+            'Batch Number',
+            'Mfg Date',
+            'Exp Date',
+            'Status'
+        ];
+
+        // Create CSV content
+        let csvContent = headers.join(',') + '\n';
+
+        products.forEach(product => {
+            const status = product.quantity === 0 ? 'Out of Stock' :
+                product.quantity <= product.reorderLevel ? 'Low Stock' : 'In Stock';
+
+            // Escape fields containing commas
+            const escape = (text) => {
+                if (!text && text !== 0) return '';
+                const stringText = String(text);
+                if (stringText.includes(',') || stringText.includes('"') || stringText.includes('\n')) {
+                    return `"${stringText.replace(/"/g, '""')}"`;
+                }
+                return stringText;
+            };
+
+            const row = [
+                escape(product.productId),
+                escape(product.name),
+                escape(product.category?.name || 'Uncategorized'),
+                escape(product.description),
+                escape(product.hsnNumber),
+                escape(product.unit),
+                escape(product.price),
+                escape(product.quantity),
+                escape(product.reorderLevel),
+                escape(product.batchNumber),
+                escape(product.manufacturingDate ? new Date(product.manufacturingDate).toISOString().split('T')[0] : ''),
+                escape(product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : ''),
+                escape(status)
+            ];
+
+            csvContent += row.join(',') + '\n';
+        });
+
+        // Set headers for download
+        const fileName = `${supplier.name.replace(/[^a-zA-Z0-9]/g, '_')}_products_${new Date().toISOString().split('T')[0]}.csv`;
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+
+        res.status(200).send(csvContent);
+
+    } catch (error) {
+        console.error('Error generating supplier products CSV:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to generate CSV report',
+            error: error.message
+        });
+    }
+};

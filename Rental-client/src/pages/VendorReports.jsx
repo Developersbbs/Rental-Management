@@ -139,6 +139,17 @@ const VendorReports = () => {
         }
     };
 
+    const handleDownloadProductCSV = async (supplierId) => {
+        try {
+            toast.info('Generating CSV report...');
+            await supplierReportService.downloadSupplierProductsCSV(supplierId);
+            toast.success('Report downloaded successfully');
+        } catch (err) {
+            console.error('Error downloading CSV:', err);
+            toast.error('Failed to download CSV report');
+        }
+    };
+
     // Download vendor reports as CSV
     const downloadCSV = () => {
         // Prepare CSV headers
@@ -439,6 +450,24 @@ const VendorReports = () => {
                                     onClick={() => handleViewProducts(supplier._id)}
                                 >
                                     <FaBoxes /> Manage Products
+                                </button>
+                                <button
+                                    className="btn-download-csv-small"
+                                    onClick={() => handleDownloadProductCSV(supplier._id)}
+                                    title="Download Product List CSV"
+                                    style={{
+                                        backgroundColor: '#607d8b',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '8px 12px',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                    }}
+                                >
+                                    <FaDownload /> CSV
                                 </button>
                             </div>
                         </div>

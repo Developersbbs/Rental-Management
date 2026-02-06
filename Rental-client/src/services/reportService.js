@@ -27,6 +27,11 @@ export const getPaymentMethodAnalysis = async (params = {}) => {
     return response.data;
 };
 
+export const getRentalProfitReport = async (params = {}) => {
+    const response = await instance.get('/reports/financial/rental-profit', { params });
+    return response.data;
+};
+
 // =============================================
 // RENTAL REPORTS
 // =============================================
@@ -73,6 +78,41 @@ export const getMaintenanceReport = async (params = {}) => {
 export const getDamageLossReport = async (params = {}) => {
     const response = await instance.get('/reports/inventory/damage-loss', { params });
     return response.data;
+};
+
+export const downloadInventoryCSV = async (params = {}) => {
+    try {
+        const response = await instance.get('/reports/inventory/csv', {
+            params,
+            responseType: 'blob'
+        });
+
+        // Create blob link to download
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+
+        // Extract filename from header or generate default
+        const contentDisposition = response.headers['content-disposition'];
+        let fileName = `inventory_census.csv`;
+        if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename=(.+)/);
+            if (fileNameMatch && fileNameMatch.length === 2) {
+                fileName = fileNameMatch[1];
+            }
+        }
+
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        return true;
+    } catch (error) {
+        console.error('Error downloading inventory CSV:', error);
+        throw error.response?.data || error;
+    }
 };
 
 // =============================================

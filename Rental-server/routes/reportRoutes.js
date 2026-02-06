@@ -13,6 +13,7 @@ router.get('/financial/revenue', reportController.getRevenueReport);
 router.get('/financial/transactions', reportController.getTransactionReport);
 router.get('/financial/outstanding-dues', reportController.getOutstandingDuesReport);
 router.get('/financial/payment-methods', reportController.getPaymentMethodAnalysis);
+router.get('/financial/rental-profit', reportController.getRentalProfitReport);
 
 // =============================================
 // RENTAL REPORTS
@@ -25,6 +26,7 @@ router.get('/rentals/calendar', reportController.getBookingCalendarReport);
 // =============================================
 // INVENTORY REPORTS
 // =============================================
+router.get('/inventory/csv', reportController.getInventoryCSV);
 router.get('/inventory/status', reportController.getInventoryStatusReport);
 router.get('/inventory/utilization', reportController.getItemUtilizationReport);
 router.get('/inventory/maintenance', reportController.getMaintenanceReport);

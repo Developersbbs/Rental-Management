@@ -113,6 +113,150 @@ exports.getRevenueReport = async (req, res) => {
     }
 };
 
+// Rental Profit Report
+// Rental Profit Report
+exports.getRentalProfitReport = async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        const matchStage = {
+            status: { $ne: 'cancelled' } // Exclude cancelled rentals
+        };
+
+        if (startDate || endDate) {
+            matchStage.outTime = {};
+            if (startDate) matchStage.outTime.$gte = new Date(startDate);
+            if (endDate) matchStage.outTime.$lte = new Date(endDate);
+        }
+
+        const rentalAnalysis = await Rental.aggregate([
+            { $match: matchStage },
+            // Add field for item count BEFORE unwinding
+            { $addFields: { itemCount: { $size: '$items' } } },
+
+            {
+                $lookup: {
+                    from: 'bills',
+                    localField: 'finalBill',
+                    foreignField: '_id',
+                    as: 'bill'
+                }
+            },
+            { $unwind: { path: '$bill', preserveNullAndEmptyArrays: true } },
+
+            // Unwind items to process each
+            { $unwind: '$items' },
+
+            {
+                $lookup: {
+                    from: 'rentalinventoryitems',
+                    localField: 'items.item',
+                    foreignField: '_id',
+                    as: 'inventoryItem'
+                }
+            },
+            { $unwind: '$inventoryItem' },
+
+            {
+                $lookup: {
+                    from: 'rentalproducts',
+                    localField: 'inventoryItem.rentalProductId',
+                    foreignField: '_id',
+                    as: 'product'
+                }
+            },
+            { $unwind: '$product' },
+
+            {
+                $lookup: {
+                    from: 'rentalcategories',
+                    localField: 'product.category',
+                    foreignField: '_id',
+                    as: 'category'
+                }
+            },
+            { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
+
+            {
+                $group: {
+                    _id: '$product._id',
+                    productName: { $first: '$product.name' },
+                    categoryName: { $first: '$category.name' },
+                    rentalCount: { $sum: 1 },
+                    // Revenue: If bill exists, use bill.paidAmount. Else use rental.totalAmount (expected).
+                    // Divide by itemCount to allocate share to this item.
+                    totalRevenue: {
+                        $sum: {
+                            $divide: [
+                                { $ifNull: ['$bill.paidAmount', '$totalAmount'] },
+                                { $cond: [{ $eq: ['$itemCount', 0] }, 1, '$itemCount'] }
+                            ]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        // Fetch investment costs (Cost of carrying inventory)
+        const productIds = rentalAnalysis.map(p => p._id);
+
+        const inventoryCosts = await RentalInventoryItem.aggregate([
+            {
+                $match: {
+                    rentalProductId: { $in: productIds },
+                    status: { $ne: 'scrap' }
+                }
+            },
+            {
+                $group: {
+                    _id: '$rentalProductId',
+                    totalInvestment: { $sum: '$purchaseCost' },
+                    itemCount: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Merge results
+        const mergedResults = rentalAnalysis.map(item => {
+            const costData = inventoryCosts.find(c => c._id.toString() === item._id.toString());
+            const totalInvestment = costData ? costData.totalInvestment : 0;
+            const inventoryCount = costData ? costData.itemCount : 0;
+            const totalRevenue = item.totalRevenue || 0;
+            const netProfit = totalRevenue - totalInvestment;
+            const roi = totalInvestment > 0 ? (netProfit / totalInvestment) * 100 : 0;
+
+            return {
+                ...item,
+                inventoryCount,
+                totalInvestment,
+                totalRevenue,
+                netProfit,
+                roi
+            };
+        });
+
+        // Calculate Summary
+        const summary = {
+            totalInvestment: mergedResults.reduce((sum, item) => sum + item.totalInvestment, 0),
+            totalRevenue: mergedResults.reduce((sum, item) => sum + item.totalRevenue, 0),
+            netProfit: mergedResults.reduce((sum, item) => sum + item.netProfit, 0),
+            averageROI: mergedResults.length > 0 ? mergedResults.reduce((sum, item) => sum + item.roi, 0) / mergedResults.length : 0
+        };
+
+        res.json({
+            success: true,
+            data: {
+                products: mergedResults,
+                summary
+            }
+        });
+
+    } catch (error) {
+        console.error('Error generating rental profit report:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // Transaction Report
 exports.getTransactionReport = async (req, res) => {
     try {
@@ -819,6 +963,108 @@ exports.getCustomerActivityReport = async (req, res) => {
         });
     } catch (error) {
         console.error('Error generating customer activity report:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =============================================
+// EXPORT REPORTS
+// =============================================
+
+// Inventory CSV Export
+exports.getInventoryCSV = async (req, res) => {
+    try {
+        const { status, category } = req.query;
+
+        const filter = {};
+        if (status) filter.status = status;
+
+        // If category filter is needed, it's complex because category is on the product
+        // We might need to filter after fetch or use aggregate. 
+        // For CSV export of full inventory, usually we want everything or just status filter.
+
+        const items = await RentalInventoryItem.find(filter)
+            .populate({
+                path: 'rentalProductId',
+                populate: { path: 'category', select: 'name' }
+            })
+            .populate('vendorId', 'name')
+            .populate('inwardId', 'grnNumber')
+            .sort({ uniqueIdentifier: 1 })
+            .lean();
+
+        // CSV Headers
+        const headers = [
+            'Asset ID',
+            'Product Name',
+            'Category',
+            'Status',
+            'Condition',
+            'Purchase Date',
+            'Purchase Cost',
+            'Ownership',
+            'Vendor Name',
+            'Vendor Return Date',
+            'Vendor Hourly Rate',
+            'Vendor Daily Rate',
+            'Vendor Monthly Rate',
+            'Batch Number',
+            'Serial Number',
+            'Notes'
+        ];
+
+        let csvContent = headers.join(',') + '\n';
+
+        const escape = (text) => {
+            if (!text && text !== 0) return '';
+            const stringText = String(text);
+            if (stringText.includes(',') || stringText.includes('"') || stringText.includes('\n')) {
+                return `"${stringText.replace(/"/g, '""')}"`;
+            }
+            return stringText;
+        };
+
+        const formatDate = (date) => {
+            if (!date) return '';
+            return new Date(date).toISOString().split('T')[0];
+        };
+
+        items.forEach(item => {
+            const product = item.rentalProductId || {};
+            const categoryName = product.category?.name || 'Uncategorized';
+            const vendorName = item.vendorId?.name || '';
+
+            const row = [
+                escape(item.uniqueIdentifier),
+                escape(product.name || 'N/A'),
+                escape(categoryName),
+                escape(item.status),
+                escape(item.condition),
+                escape(formatDate(item.purchaseDate)),
+                escape(item.purchaseCost),
+                escape(item.ownershipType),
+                escape(vendorName),
+                escape(formatDate(item.vendorReturnDate)),
+                escape(item.vendorRentalRate?.hourly || 0),
+                escape(item.vendorRentalRate?.daily || 0),
+                escape(item.vendorRentalRate?.monthly || 0),
+                escape(item.batchNumber),
+                escape(item.serialNumber),
+                escape(item.notes)
+            ];
+
+            csvContent += row.join(',') + '\n';
+        });
+
+        const fileName = `inventory_census_${new Date().toISOString().split('T')[0]}.csv`;
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+
+        res.status(200).send(csvContent);
+
+    } catch (error) {
+        console.error('Error generating inventory CSV:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

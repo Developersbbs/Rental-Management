@@ -249,12 +249,32 @@ const SellingAccessories = () => {
                         />
                     </div>
                     {isSuperAdmin && (
-                        <button
-                            onClick={() => { resetForm(); setShowModal(true); }}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap shadow-sm"
-                        >
-                            <Plus className="w-5 h-5" /> Add Accessory
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        setLoading(true); // Re-using loading state for feedback or create separate
+                                        await productService.downloadSellingAccessoriesReport();
+                                        setSuccess('Report downloaded successfully');
+                                        setTimeout(() => setSuccess(''), 3000);
+                                    } catch (err) {
+                                        setError('Failed to download report');
+                                        setTimeout(() => setError(''), 3000);
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap shadow-sm"
+                            >
+                                <TrendingUp className="w-5 h-5" /> Export Profit Report
+                            </button>
+                            <button
+                                onClick={() => { resetForm(); setShowModal(true); }}
+                                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap shadow-sm"
+                            >
+                                <Plus className="w-5 h-5" /> Add Accessory
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

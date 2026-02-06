@@ -20,7 +20,8 @@ import {
     getInventoryStatusReport,
     getItemUtilizationReport,
     getMaintenanceReport,
-    getDamageLossReport
+    getDamageLossReport,
+    downloadInventoryCSV
 } from '../../services/reportService';
 
 const InventoryReports = () => {
@@ -491,7 +492,7 @@ const InventoryReports = () => {
         );
     };
 
-    const handleExport = () => {
+    const handleExport = async () => {
         let csvContent = [];
         let filename = `inventory_report_${activeReport}_${new Date().toISOString().split('T')[0]}.csv`;
 
@@ -504,15 +505,25 @@ const InventoryReports = () => {
             return stringValue;
         };
 
-        if (activeReport === 'status' && inventoryStatus) {
+        if (activeReport === 'status') {
+            try {
+                // Use backend generated CSV for full inventory details
+                const success = await downloadInventoryCSV();
+                if (success) return; // Download handled by service
+            } catch (error) {
+                console.error("Failed to download backend CSV, falling back to client-side", error);
+                // Fallback handled below if needed, or just show error
+            }
+
+            // Fallback content if backend fails (or we can just remove this block if confident)
             csvContent.push('--- Inventory Status Report ---');
-            csvContent.push(`Total Items,${inventoryStatus.summary?.total}`);
-            csvContent.push(`Available,${inventoryStatus.summary?.available}`);
-            csvContent.push(`Rented,${inventoryStatus.summary?.rented}`);
-            csvContent.push(`In Maintenance,${inventoryStatus.summary?.maintenance}`);
+            csvContent.push(`Total Items,${inventoryStatus?.summary?.total}`);
+            csvContent.push(`Available,${inventoryStatus?.summary?.available}`);
+            csvContent.push(`Rented,${inventoryStatus?.summary?.rented}`);
+            csvContent.push(`In Maintenance,${inventoryStatus?.summary?.maintenance}`);
             csvContent.push('');
             csvContent.push('Identifier,Product,Status,Condition,Purchase Date,Purchase Cost,Vendor,Vendor Return Date,Vendor Rate (Hourly),Vendor Rate (Daily),Vendor Rate (Monthly)');
-            inventoryStatus.items?.forEach(item => {
+            inventoryStatus?.items?.forEach(item => {
                 const vendorName = item.vendorId?.name || 'N/A';
                 const vendorReturnDate = item.vendorReturnDate ? new Date(item.vendorReturnDate).toLocaleDateString('en-IN') : 'N/A';
                 const hourlyRate = item.vendorRentalRate?.hourly || 0;

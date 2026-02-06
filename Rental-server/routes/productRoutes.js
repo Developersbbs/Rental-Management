@@ -11,7 +11,9 @@ const {
   getLowStockProducts,
   bulkUpdateProducts,
   getProductReport,
-  getProductStats
+
+  getProductStats,
+  getSellingAccessoriesProfitReport
 } = require('../controllers/productController');
 const { protect, allowRoles } = require('../middlewares/authMiddlewares');
 
@@ -21,8 +23,9 @@ const router = express.Router();
 router.get('/categories', protect, getCategories); // Must be before /:id route
 router.get('/stats', protect, getProductStats); // Must be before /:id route
 router.get('/report', protect, allowRoles("superadmin", "staff"), getProductReport);
+router.get('/selling-accessories/csv', protect, allowRoles("superadmin"), getSellingAccessoriesProfitReport);
 router.get('/', protect, getProducts);
-router.get('/:id', protect, getProductById);
+router.get('/:id', protect, getProductById); // Must be last of the GETs to avoid eating specific paths
 
 // Protected routes (Super Admin only for modification)
 router.post('/', protect, allowRoles("superadmin"), createProduct);

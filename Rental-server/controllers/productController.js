@@ -114,13 +114,16 @@ const getProducts = async (req, res) => {
       const productBatches = batchesByProduct[product._id] || [];
       obj.batches = productBatches;
 
-      // Update price to latest batch price if available
+      // Update cost to latest batch cost if available
       if (productBatches.length > 0) {
-        obj.price = productBatches[0].unitCost;
+        obj.purchaseCost = productBatches[0].unitCost; // Set Purchase Cost from batch
         obj.batchNumber = productBatches[0].batchNumber;
-        obj.latestBatchPrice = productBatches[0].unitCost;
-        obj.minBatchPrice = Math.min(...productBatches.map(b => b.unitCost));
-        obj.maxBatchPrice = Math.max(...productBatches.map(b => b.unitCost));
+        // Do NOT overwrite obj.price (Selling Price) with unitCost (Purchase Cost)
+        // obj.price = productBatches[0].unitCost; <-- REMOVED THIS BUG
+
+        obj.latestBatchCost = productBatches[0].unitCost; // Renamed for clarity
+        obj.minBatchCost = Math.min(...productBatches.map(b => b.unitCost));
+        obj.maxBatchCost = Math.max(...productBatches.map(b => b.unitCost));
       }
 
       return obj;
@@ -174,9 +177,10 @@ const getProductById = async (req, res) => {
         manufacturingDate: batch.manufacturingDate
       }));
 
-      // If there are batches, set the price to the latest batch price
+      // If there are batches, set the purchaseCost to the latest batch cost
       if (batches.length > 0) {
-        formattedProduct.price = batches[0].unitCost;
+        formattedProduct.purchaseCost = batches[0].unitCost;
+        // Do NOT overwrite price
       }
 
       res.status(200).json(formattedProduct);
@@ -215,7 +219,8 @@ const createProduct = async (req, res) => {
     isRental,
     rentalPrice,
     minRentalHours,
-    isSellingAccessory
+    isSellingAccessory,
+    purchaseCost
   } = req.body;
 
   // Accept either category or categoryId; supplier or supplierId
@@ -302,7 +307,8 @@ const createProduct = async (req, res) => {
       isRental: isRental || false,
       isSellingAccessory: isSellingAccessory || false,
       rentalPrice: rentalPrice || { hourly: 0, daily: 0 },
-      minRentalHours: minRentalHours ? parseInt(minRentalHours) : 1
+      minRentalHours: minRentalHours ? parseInt(minRentalHours) : 1,
+      purchaseCost: purchaseCost ? parseFloat(purchaseCost) : 0
     };
 
     // Only add productId if it's provided and not empty
@@ -358,7 +364,8 @@ const updateProduct = async (req, res) => {
     isRental,
     rentalPrice,
     minRentalHours,
-    isSellingAccessory
+    isSellingAccessory,
+    purchaseCost
   } = req.body;
 
   try {
@@ -440,6 +447,11 @@ const updateProduct = async (req, res) => {
     // Update rental fields
     product.isRental = isRental !== undefined ? isRental : product.isRental;
     product.isSellingAccessory = isSellingAccessory !== undefined ? isSellingAccessory : product.isSellingAccessory;
+
+    // Update purchase cost
+    if (purchaseCost !== undefined) {
+      product.purchaseCost = parseFloat(purchaseCost);
+    }
 
     if (rentalPrice) product.rentalPrice = rentalPrice;
     if (minRentalHours) product.minRentalHours = parseInt(minRentalHours);
@@ -768,6 +780,122 @@ const getProductStats = async (req, res) => {
   }
 };
 
+// @desc    Get profit report for selling accessories (CSV)
+// @route   GET /api/products/selling-accessories/csv
+// @access  Private/Admin
+const getSellingAccessoriesProfitReport = async (req, res) => {
+  try {
+    const Bill = require('../models/Bill'); // Import Bill model here to avoid circular dependency
+
+    // 1. Fetch all selling accessories
+    const accessories = await Product.find({ isSellingAccessory: true })
+      .select('name sku price purchaseCost quantity unit hsnNumber')
+      .lean();
+
+    if (!accessories.length) {
+      return res.status(404).json({ message: 'No selling accessories found.' });
+    }
+
+    // 2. Aggregate sales data from Bills
+    // We want to sum quantity and total revenue for each product
+    const salesAggregation = await Bill.aggregate([
+      { $match: { type: 'sale' } }, // Only sales
+      { $unwind: '$items' },
+      {
+        $match: {
+          'items.productId': { $in: accessories.map(a => a._id) }
+        }
+      },
+      {
+        $group: {
+          _id: '$items.productId',
+          totalSold: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: '$items.total' }
+        }
+      }
+    ]);
+
+    // Create a map for easy lookup
+    const salesMap = salesAggregation.reduce((acc, curr) => {
+      acc[String(curr._id)] = curr;
+      return acc;
+    }, {});
+
+    // 3. Generate CSV
+    const headers = [
+      'Product Name',
+      'SKU',
+      'HSN',
+      'Unit',
+      'Purchase Cost',
+      'Selling Price',
+      'Current Stock',
+      'Stock Value (Investment)', // quantity * purchaseCost
+      'Potential Profit (Stock)', // quantity * (price - purchaseCost)
+      'Units Sold',
+      'Total Revenue',
+      'Est. Realized Profit', // totalSold * (price - purchaseCost)
+      'Profit Margin %'
+    ];
+
+    let csvContent = headers.join(',') + '\n';
+
+    const escape = (text) => {
+      if (!text && text !== 0) return '';
+      const stringText = String(text);
+      if (stringText.includes(',') || stringText.includes('"') || stringText.includes('\n')) {
+        return `"${stringText.replace(/"/g, '""')}"`;
+      }
+      return stringText;
+    };
+
+    accessories.forEach(acc => {
+      const sales = salesMap[String(acc._id)] || { totalSold: 0, totalRevenue: 0 };
+
+      const purchaseCost = acc.purchaseCost || 0;
+      const sellingPrice = acc.price || 0;
+      const unitProfit = sellingPrice - purchaseCost;
+
+      const stockValue = acc.quantity * purchaseCost;
+      const potentialStockProfit = acc.quantity * unitProfit;
+
+      // Realized profit calculation
+      const realizedProfit = sales.totalRevenue - (sales.totalSold * purchaseCost);
+
+      const profitMargin = purchaseCost > 0
+        ? ((unitProfit / purchaseCost) * 100).toFixed(2)
+        : '100.00';
+
+      const row = [
+        escape(acc.name),
+        escape(acc.sku),
+        escape(acc.hsnNumber),
+        escape(acc.unit),
+        purchaseCost.toFixed(2),
+        sellingPrice.toFixed(2),
+        acc.quantity,
+        stockValue.toFixed(2),
+        potentialStockProfit.toFixed(2),
+        sales.totalSold,
+        sales.totalRevenue.toFixed(2),
+        realizedProfit.toFixed(2),
+        profitMargin
+      ];
+
+      csvContent += row.join(',') + '\n';
+    });
+
+    const fileName = `selling_accessories_profit_${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.status(200).send(csvContent);
+
+  } catch (error) {
+    console.error('Error generating detailed profit report:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 module.exports = {
   getProducts,
   getProductById,
@@ -780,4 +908,5 @@ module.exports = {
   bulkUpdateProducts,
   getProductReport,
   getProductStats,
+  getSellingAccessoriesProfitReport
 };

@@ -119,7 +119,40 @@ const productService = {
     }
   },
 
-  // Calculate product statistics
+  // Download selling accessories profit report
+  downloadSellingAccessoriesReport: async () => {
+    try {
+      const response = await instance.get('/products/selling-accessories/csv', {
+        responseType: 'blob'
+      });
+
+      // Create blob link to download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+
+      // Extract filename from header or generate default
+      const contentDisposition = response.headers['content-disposition'];
+      let fileName = `selling_accessories_profit_report.csv`;
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename=(.+)/);
+        if (fileNameMatch && fileNameMatch.length === 2) {
+          fileName = fileNameMatch[1];
+        }
+      }
+
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      return true;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Failed to download report');
+    }
+  },
+
   calculateStats: (products) => {
     if (!products || !Array.isArray(products)) {
       return {

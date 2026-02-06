@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import supplierReportService from '../services/supplierReportService';
 import supplierService from '../services/supplierService';
 import productService from '../services/productService';
-import { FaArrowLeft, FaBox, FaExclamationTriangle, FaCheckCircle, FaEdit, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaBox, FaExclamationTriangle, FaCheckCircle, FaEdit, FaTrash, FaSave, FaTimes, FaDownload } from 'react-icons/fa';
 import './VendorProductManagement.css';
 
 const VendorProductManagement = () => {
@@ -143,6 +143,16 @@ const VendorProductManagement = () => {
             setUpdating(false);
         }
     };
+    const handleDownloadCSV = async () => {
+        try {
+            toast.info('Generating CSV report...');
+            await supplierReportService.downloadSupplierProductsCSV(supplierId);
+            toast.success('Report downloaded successfully');
+        } catch (err) {
+            console.error('Error downloading CSV:', err);
+            toast.error('Failed to download CSV report');
+        }
+    };
 
     if (error && !supplier) {
         return (
@@ -166,10 +176,31 @@ const VendorProductManagement = () => {
                 </button>
 
                 {supplier && (
-                    <div className="supplier-info-header">
-                        <h1>{supplier.name} - Product Management</h1>
-                        <p className="supplier-contact">{supplier.email} • {supplier.phone}</p>
-                    </div>
+                    <>
+                        <div className="supplier-info-header">
+                            <h1>{supplier.name} - Product Management</h1>
+                            <p className="supplier-contact">{supplier.email} • {supplier.phone}</p>
+                        </div>
+                        <button
+                            className="btn-download-csv"
+                            onClick={() => handleDownloadCSV()}
+                            disabled={products.length === 0}
+                            style={{
+                                backgroundColor: '#4CAF50',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 15px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                marginLeft: 'auto'
+                            }}
+                        >
+                            <FaDownload /> Download CSV
+                        </button>
+                    </>
                 )}
             </div>
 

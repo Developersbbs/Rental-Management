@@ -18,4 +18,7 @@ router.get('/:supplierId', supplierReportController.getSupplierDetailedReport);
 // Get products from a specific supplier
 router.get('/:supplierId/products', supplierReportController.getSupplierProducts);
 
+// Download products CSV for a specific supplier
+router.get('/:supplierId/products/csv', supplierReportController.getSupplierProductsCSV);
+
 module.exports = router;
