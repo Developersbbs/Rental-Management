@@ -35,9 +35,23 @@ const getAllAccessoryInwards = async (params = {}) => {
     }
 };
 
+const importAccessoryInwards = async (formData) => {
+    try {
+        const response = await axiosInstance.post(`${API_URL}/import`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error;
+    }
+};
+
 const accessoryInwardService = {
     createAccessoryInward,
-    getAllAccessoryInwards
+    getAllAccessoryInwards,
+    importAccessoryInwards
 };
 
 export default accessoryInwardService;

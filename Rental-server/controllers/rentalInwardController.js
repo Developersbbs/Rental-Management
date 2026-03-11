@@ -1,6 +1,9 @@
 const RentalInward = require('../models/RentalInward');
 const RentalProduct = require('../models/RentalProduct');
+const RentalCategory = require('../models/RentalCategory');
 const RentalInventoryItem = require('../models/RentalInventoryItem');
+const XLSX = require('xlsx');
+const mongoose = require('mongoose');
 
 // Create rental inward
 exports.createRentalInward = async (req, res) => {
@@ -32,7 +35,7 @@ exports.createRentalInward = async (req, res) => {
             // Calculate total based on inward type
             let itemTotal = 0;
             if (inwardType === 'purchase') {
-                if (!item.purchaseCost) {
+                if (item.purchaseCost === undefined || item.purchaseCost === null) {
                     return res.status(400).json({ message: 'Purchase cost is required for purchase inward' });
                 }
                 itemTotal = item.quantity * item.purchaseCost;
@@ -260,6 +263,135 @@ exports.deleteRentalInward = async (req, res) => {
     } catch (err) {
         console.error('Error deleting rental inward:', err);
         res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
+// Import rental inwards from Excel
+exports.importRentalInwardsFromExcel = async (req, res) => {
+    try {
+        console.log('📥 Received rental inward import request');
+
+        if (!req.file) {
+            return res.status(400).json({ message: 'Please upload an Excel file' });
+        }
+
+        const { receivedDate, inwardType, supplier, notes, supplierInvoiceNumber } = req.body;
+
+        if (inwardType === 'sub_rental' && !supplier) {
+            return res.status(400).json({ message: 'Supplier is required for sub-rental. Please select one in the main form.' });
+        }
+
+        // Parse Excel file from buffer
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        if (!data || data.length === 0) {
+            return res.status(400).json({ message: 'Excel file is empty or invalid format' });
+        }
+
+        console.log(`📊 Parsed ${data.length} rows from Excel`);
+
+        // Ensure "General" category exists for auto-created products
+        let generalCategory = await RentalCategory.findOne({ name: { $regex: /^General$/i } });
+        if (!generalCategory) {
+            generalCategory = await RentalCategory.create({
+                name: 'General',
+                description: 'Auto-created category for imported products'
+            });
+            console.log('✅ Created "General" category');
+        }
+
+        // Map Excel rows to rental inward items
+        const items = [];
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+
+            // Flexible column mapping
+            const productInput = (
+                row['Product ID'] || row['product'] || row['Product'] || row['Product Name'] ||
+                row['ITEM'] || row['Item Name'] || row['Name'] || ''
+            ).toString().trim();
+
+            const quantity = parseInt(row['Quantity'] || row['quantity'] || row['QTY'] || row['Qty'] || 1) || 1;
+
+            const purchaseCost = parseFloat(
+                row['Purchase Cost'] || row['purchaseCost'] || row['Cost'] ||
+                row['Price'] || row['Unit Cost'] || row['PURCHASE COST'] || 0
+            );
+
+            const batchNumber = (
+                row['Batch Number'] || row['batchNumber'] || row['Batch'] ||
+                row['Serial Number'] || row['Sl No'] || `AUTO-${Date.now()}-${i}`
+            ).toString();
+
+            const brand = row['Brand'] || row['brand'] || row['BRAND'] || '';
+            const modelNumber = row['Model Number'] || row['modelNumber'] || row['Model'] || row['MODEL'] || '';
+            const condition = row['Condition'] || row['condition'] || row['Status'] || 'new';
+            const itemNotes = row['Notes'] || row['notes'] || row['REMARKS'] || '';
+
+            if (!productInput) {
+                return res.status(400).json({ message: `Row ${i + 1}: Product (ID or Name) is missing` });
+            }
+
+            // Resolve product
+            let productDoc;
+            if (mongoose.Types.ObjectId.isValid(productInput)) {
+                productDoc = await RentalProduct.findById(productInput);
+            }
+
+            if (!productDoc) {
+                // Find by name (case-insensitive) - escape regex special characters
+                const escapedName = productInput.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                productDoc = await RentalProduct.findOne({ name: { $regex: new RegExp(`^${escapedName}$`, 'i') } });
+            }
+
+            if (!productDoc) {
+                // Auto-create product if it doesn't exist
+                console.log(`📦 Auto-creating product: "${productInput}"`);
+                productDoc = await RentalProduct.create({
+                    name: productInput,
+                    category: generalCategory._id,
+                    createdBy: req.user._id,
+                    status: 'active'
+                });
+                console.log(`✅ Product created with ID: ${productDoc._id}`);
+            }
+
+            items.push({
+                product: productDoc._id,
+                quantity,
+                purchaseCost: inwardType === 'purchase' ? purchaseCost : undefined,
+                vendorRentalRate: inwardType === 'sub_rental' ? {
+                    daily: parseFloat(row['Daily Rate'] || 0),
+                    hourly: parseFloat(row['Hourly Rate'] || 0),
+                    monthly: parseFloat(row['Monthly Rate'] || 0)
+                } : undefined,
+                batchNumber,
+                brand,
+                modelNumber,
+                condition,
+                notes: itemNotes
+            });
+        }
+
+        // Construct body for createRentalInward
+        req.body = {
+            receivedDate: receivedDate || new Date(),
+            inwardType: inwardType || 'purchase',
+            supplier: supplier && supplier !== 'undefined' ? supplier : undefined,
+            items,
+            notes: notes || '',
+            supplierInvoiceNumber: supplierInvoiceNumber || ''
+        };
+
+        // Call the internal creation logic
+        return exports.createRentalInward(req, res);
+
+    } catch (err) {
+        console.error('❌ Error in rental inward import:', err);
+        res.status(500).json({ message: 'Import failed', error: err.message });
     }
 };
 

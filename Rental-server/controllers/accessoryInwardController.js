@@ -1,6 +1,8 @@
 const AccessoryInward = require('../models/AccessoryInward');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const XLSX = require('xlsx');
+const mongoose = require('mongoose');
 
 // @desc    Create new accessory inward
 // @route   POST /api/accessory-inward
@@ -162,7 +164,79 @@ const getAllAccessoryInwards = async (req, res) => {
     }
 };
 
+// @desc    Import accessory inwards from Excel
+// @route   POST /api/accessory-inward/import
+// @access  Private
+const importAccessoryInwardsFromExcel = async (req, res) => {
+    try {
+        console.log('📥 Received accessory inward import request');
+
+        if (!req.file) {
+            return res.status(400).json({ message: 'Please upload an Excel file' });
+        }
+
+        const { receivedDate, supplier, notes, supplierInvoiceNumber } = req.body;
+
+        // Parse Excel file from buffer
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        if (!data || data.length === 0) {
+            return res.status(400).json({ message: 'Excel file is empty or invalid format' });
+        }
+
+        console.log(`📊 Parsed ${data.length} rows from Excel`);
+
+        // Map Excel rows to accessory inward items
+        const items = [];
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            const name = (row['Product Name'] || row['name'] || row['Product'] || row['Item'] || '').toString().trim();
+            const sku = (row['SKU'] || row['sku'] || '').toString().trim();
+            const quantity = parseInt(row['Quantity'] || row['quantity'] || row['Qty'] || 1) || 1;
+            const purchaseCost = parseFloat(row['Purchase Cost'] || row['purchaseCost'] || row['Cost'] || 0) || 0;
+            const sellingPrice = parseFloat(row['Selling Price'] || row['sellingPrice'] || row['Price'] || 0) || 0;
+            const minStockLevel = parseInt(row['Min Stock'] || row['minStockLevel'] || 5) || 5;
+            const location = (row['Location'] || row['location'] || '').toString().trim();
+
+            if (!name) {
+                return res.status(400).json({ message: `Row ${i + 1}: Product Name is missing` });
+            }
+
+            items.push({
+                name,
+                sku,
+                quantity,
+                purchaseCost,
+                sellingPrice,
+                minStockLevel,
+                location
+            });
+        }
+
+        // Construct body for createAccessoryInward
+        req.body = {
+            receivedDate: receivedDate || new Date(),
+            supplier: supplier && supplier !== 'undefined' ? supplier : undefined,
+            items,
+            notes: notes || '',
+            supplierInvoiceNumber: supplierInvoiceNumber || '',
+            totalAmount: items.reduce((sum, item) => sum + (item.quantity * item.purchaseCost), 0)
+        };
+
+        // Call the internal creation logic
+        return await createAccessoryInward(req, res);
+
+    } catch (error) {
+        console.error('Error importing accessory inward:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createAccessoryInward,
-    getAllAccessoryInwards
+    getAllAccessoryInwards,
+    importAccessoryInwardsFromExcel
 };

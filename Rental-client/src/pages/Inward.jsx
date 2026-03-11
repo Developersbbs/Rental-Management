@@ -20,11 +20,13 @@ import { toast } from 'react-toastify';
 import InwardList from '@/components/InwardList';
 import InwardForm from '@/components/InwardForm';
 import InwardDetail from '@/components/InwardDetail';
+import ImportModal from '@/components/ImportModal';
 
 const Inward = () => {
   const [currentView, setCurrentView] = useState('list');
   const [selectedInward, setSelectedInward] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -47,7 +49,7 @@ const Inward = () => {
   const productsState = useSelector((state) => state.products);
   // Handle different product state structures
   const products = productsState?.items || productsState?.products || [];
-  
+
   // Debug log to check products
   useEffect(() => {
     console.log('Products in Inward component:', products);
@@ -65,7 +67,7 @@ const Inward = () => {
       };
       dispatch(getInwards(queryParams));
       loadSuppliers();
-      
+
       // Fetch products with proper error handling
       if (products.length === 0) {
         console.log('🔄 Loading products...');
@@ -337,12 +339,20 @@ const Inward = () => {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-800">Inward Management (GRN)</h1>
             {currentView === 'list' && (
-              <button
-                onClick={handleCreateNew}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
-              >
-                Create New Inward
-              </button>
+              <div className="flex">
+                <button
+                  onClick={handleCreateNew}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+                >
+                  Create New Inward
+                </button>
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md ml-2"
+                >
+                  Import Bulk
+                </button>
+              </div>
             )}
             {currentView !== 'list' && (
               <button
@@ -403,6 +413,12 @@ const Inward = () => {
               user={user}
             />
           )}
+
+          <ImportModal
+            isOpen={showImportModal}
+            onClose={() => setShowImportModal(false)}
+            suppliers={suppliers}
+          />
         </>
       )}
     </div>

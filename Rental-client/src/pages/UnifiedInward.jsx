@@ -8,7 +8,9 @@ import rentalProductService from '../services/rentalProductService';
 import rentalCategoryService from '../services/rentalCategoryService';
 import supplierService from '../services/supplierService';
 import categoryService from '../services/categoryService';
-import rentalSupplierService from '../services/rentalSupplierService'; // Import rental supplier service
+import rentalSupplierService from '../services/rentalSupplierService';
+import ImportModal from '../components/ImportModal';
+import { toast } from 'react-toastify';
 
 const UnifiedInward = () => {
     const navigate = useNavigate();
@@ -16,6 +18,7 @@ const UnifiedInward = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [showImportModal, setShowImportModal] = useState(false);
 
     // Common data
     const [suppliers, setSuppliers] = useState([]);
@@ -265,6 +268,30 @@ const UnifiedInward = () => {
         }
     };
 
+    const handleRentalImport = async (formData) => {
+        // Inherit values from main form
+        if (rentalFormData.inwardType === 'sub_rental' && !rentalFormData.supplier) {
+            toast.error('Please select a vendor in the main form before importing');
+            throw new Error('Vendor required');
+        }
+
+        formData.append('inwardType', rentalFormData.inwardType);
+        formData.append('supplier', rentalFormData.supplier || '');
+        formData.append('supplierInvoiceNumber', rentalFormData.supplierInvoiceNumber || '');
+        formData.append('receivedDate', rentalFormData.receivedDate || new Date().toISOString());
+        formData.append('notes', rentalFormData.notes || '');
+
+        return await rentalInwardService.importRentalInwards(formData);
+    };
+
+    const handleSellingImport = async (formData) => {
+        formData.append('supplierInvoiceNumber', sellingFormData.supplierInvoiceNumber || '');
+        formData.append('receivedDate', sellingFormData.receivedDate || new Date().toISOString());
+        formData.append('notes', sellingFormData.notes || '');
+
+        return await accessoryInwardService.importAccessoryInwards(formData);
+    };
+
     // Selling handlers (unchanged)
     const handleSellingFormChange = (e) => {
         setSellingFormData({ ...sellingFormData, [e.target.name]: e.target.value });
@@ -390,6 +417,25 @@ const UnifiedInward = () => {
                         <ArrowLeft className="w-5 h-5" />
                         Back
                     </button>
+                    {activeTab === 'rental' && (
+                        <button
+                            onClick={() => setShowImportModal(true)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
+                        >
+                            <Package className="w-5 h-5" />
+                            Import Bulk
+                        </button>
+                    )}
+                    {activeTab === 'selling' && (
+                        <button
+                            type="button"
+                            onClick={() => setShowImportModal(true)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-colors"
+                        >
+                            <Tag className="w-5 h-5" />
+                            Import Bulk
+                        </button>
+                    )}
                 </div>
 
                 {/* Tab Switcher */}
@@ -1029,6 +1075,17 @@ const UnifiedInward = () => {
                         </div>
                     </form>
                 )}
+
+                <ImportModal
+                    isOpen={showImportModal}
+                    onClose={() => setShowImportModal(false)}
+                    onImport={activeTab === 'rental' ? handleRentalImport : handleSellingImport}
+                    title={activeTab === 'rental' ? "Import Bulk Rental Inward" : "Import Bulk Selling Accessories"}
+                    description={activeTab === 'rental'
+                        ? "Columns: Product Name, Quantity, Purchase Cost, Batch Number, Brand, Model, Condition, Notes"
+                        : "Columns: Product Name, SKU, Quantity, Purchase Cost, Selling Price, Min Stock, Location"
+                    }
+                />
             </div>
         </div>
     );

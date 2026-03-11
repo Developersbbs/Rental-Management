@@ -62,6 +62,16 @@ const getInwardStats = async () => {
   return response.data;
 };
 
+// Import inwards from Excel
+const importInwards = async (formData) => {
+  const response = await instance.post(`${API_URL}/import`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response.data;
+};
+
 const inwardService = {
   createInward,
   getInwards,
@@ -72,7 +82,8 @@ const inwardService = {
   rejectInward,
   completeInward,
   getInwardStats,
-  addToInventory
+  addToInventory,
+  importInwards
 };
 
 export default inwardService;

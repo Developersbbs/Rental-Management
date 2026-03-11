@@ -4,6 +4,7 @@ const Category = require('../models/Category');
 const ProductBatch = require('../models/ProductBatch');
 const asyncHandler = require('express-async-handler');
 const { handleStockNotifications } = require('../utils/stockNotifications');
+const XLSX = require('xlsx');
 
 // @desc    Create a new inward (GRN)
 // @route   POST /api/inwards
@@ -11,7 +12,7 @@ const { handleStockNotifications } = require('../utils/stockNotifications');
 const createInward = asyncHandler(async (req, res) => {
   console.log('📥 Received inward creation request');
   console.log('Request body:', JSON.stringify(req.body, null, 2));
-  
+
   const {
     supplier,
     purchaseOrder,
@@ -90,11 +91,11 @@ const createInward = asyncHandler(async (req, res) => {
       expiryDate: item.expiryDate,
       notes: item.notes
     };
-    
+
     console.log(`Item ${index + 1} processed:`, processedItem);
     return processedItem;
   }));
-  
+
   console.log('✅ All items processed successfully');
 
   // Calculate total amount
@@ -126,13 +127,13 @@ const createInward = asyncHandler(async (req, res) => {
 
   // Create inward
   console.log('💾 Creating inward with data:', JSON.stringify(inwardData, null, 2));
-  
+
   let inward;
   try {
     // Create a new inward document
     inward = new Inward(inwardData);
     console.log('📝 Inward document created, about to save...');
-    
+
     // Save the document (this will trigger pre-save hooks)
     await inward.save();
     console.log('✅ Inward saved successfully:', inward._id);
@@ -159,11 +160,11 @@ const createInward = asyncHandler(async (req, res) => {
 
   // Handle population for mixed product types - populate product details
   const inwardObj = inward.toObject ? inward.toObject() : inward;
-  
+
   // Populate product details for each item
   for (let i = 0; i < inwardObj.items.length; i++) {
     const item = inwardObj.items[i];
-    
+
     // If product is an ObjectId, fetch the product details
     if (typeof item.product === 'object' && item.product._id) {
       // Already populated by mongoose
@@ -273,11 +274,11 @@ const getInwards = asyncHandler(async (req, res) => {
     for (let docIndex = 0; docIndex < inwards.docs.length; docIndex++) {
       const inward = inwards.docs[docIndex];
       const inwardObj = inward.toObject ? inward.toObject() : inward;
-      
+
       // Populate product details for each item
       for (let i = 0; i < inwardObj.items.length; i++) {
         const item = inwardObj.items[i];
-        
+
         if (typeof item.product === 'object' && item.product._id) {
           // Already populated
           inwardObj.items[i].product = {
@@ -302,7 +303,7 @@ const getInwards = asyncHandler(async (req, res) => {
           };
         }
       }
-      
+
       inwards.docs[docIndex] = inwardObj;
     }
   }
@@ -334,11 +335,11 @@ const getInward = asyncHandler(async (req, res) => {
 
   // Handle population for mixed product types
   const inwardObj = inward.toObject ? inward.toObject() : inward;
-  
+
   // Populate product details for each item
   for (let i = 0; i < inwardObj.items.length; i++) {
     const item = inwardObj.items[i];
-    
+
     if (typeof item.product === 'object' && item.product._id) {
       // Already populated
       inwardObj.items[i].product = {
@@ -473,12 +474,12 @@ const updateInward = asyncHandler(async (req, res) => {
   if (notes !== undefined) inward.notes = notes;
   if (qualityCheckStatus !== undefined) inward.qualityCheckStatus = qualityCheckStatus;
   if (qualityCheckNotes !== undefined) inward.qualityCheckNotes = qualityCheckNotes;
-  
+
   // Recalculate total amount
   if (items) {
     inward.totalAmount = inward.items.reduce((total, item) => total + (item.receivedQuantity * item.unitCost), 0);
   }
-  
+
   const updatedInward = await inward.save();
 
   try {
@@ -509,7 +510,7 @@ const updateInward = asyncHandler(async (req, res) => {
         } else {
           product = null;
         }
-        
+
         return {
           ...item,
           product: product
@@ -905,8 +906,8 @@ const addInwardToInventory = asyncHandler(async (req, res) => {
   await inward.save();
 
   console.log('=== ADD TO INVENTORY SUCCESS ===');
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'Products added to inventory successfully',
     inwardId: inward._id
   });
@@ -1034,6 +1035,83 @@ const getInwardStats = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Import inwards from Excel
+// @route   POST /api/inwards/import
+// @access  Private (superadmin/stockmanager)
+const importInwardsFromExcel = asyncHandler(async (req, res) => {
+  console.log('📥 Received inward import request');
+
+  if (!req.file) {
+    res.status(400);
+    throw new Error('Please upload an Excel file');
+  }
+
+  const { supplier, invoiceNumber, invoiceDate, deliveryChallanNumber, vehicleNumber, notes } = req.body;
+
+  if (!supplier) {
+    res.status(400);
+    throw new Error('Supplier is required');
+  }
+
+  // Parse Excel file from buffer
+  const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const data = XLSX.utils.sheet_to_json(worksheet);
+
+  if (!data || data.length === 0) {
+    res.status(400);
+    throw new Error('Excel file is empty or invalid format');
+  }
+
+  console.log(`📊 Parsed ${data.length} rows from Excel`);
+
+  // Map Excel rows to inward items
+  // Expected columns: Product Name, Received Quantity, Ordered Quantity, Unit Cost, Batch Number, Mfg Date, Expiry Date, Notes
+  const items = data.map((row, index) => {
+    // Basic validation and mapping
+    const productName = row['Product Name'] || row['productName'] || row['Product'];
+    const receivedQuantity = parseFloat(row['Received Quantity'] || row['receivedQuantity'] || row['Quantity'] || 0);
+    const orderedQuantity = parseFloat(row['Ordered Quantity'] || row['orderedQuantity'] || receivedQuantity || 0);
+    const unitCost = parseFloat(row['Unit Cost'] || row['unitCost'] || row['Price'] || 0);
+    const batchNumber = (row['Batch Number'] || row['batchNumber'] || `AUTO-${Date.now()}-${index}`).toString();
+    const manufacturingDate = row['Mfg Date'] || row['manufacturingDate'] || new Date();
+    const expiryDate = row['Expiry Date'] || row['expiryDate'];
+    const itemNotes = row['Notes'] || row['notes'] || '';
+
+    if (!productName) {
+      throw new Error(`Row ${index + 1}: Product Name is missing`);
+    }
+
+    return {
+      product: productName, // Will be processed in createInward logic
+      productName: productName,
+      receivedQuantity,
+      orderedQuantity,
+      unitCost,
+      batchNumber,
+      manufacturingDate,
+      expiryDate,
+      notes: itemNotes
+    };
+  });
+
+  // Reuse the internal logic of createInward by passing the constructed body
+  req.body = {
+    supplier,
+    items,
+    invoiceNumber,
+    invoiceDate,
+    deliveryChallanNumber,
+    vehicleNumber,
+    notes,
+    qualityCheckStatus: 'pending'
+  };
+
+  // Call createInward directly
+  return createInward(req, res);
+});
+
 module.exports = {
   createInward,
   getInwards,
@@ -1044,5 +1122,6 @@ module.exports = {
   rejectInward,
   completeInward,
   getInwardStats,
-  addInwardToInventory
+  addInwardToInventory,
+  importInwardsFromExcel
 };

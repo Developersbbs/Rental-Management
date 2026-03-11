@@ -151,6 +151,22 @@ export const completeInward = createAsyncThunk(
   }
 );
 
+export const importInwards = createAsyncThunk(
+  'inwards/import',
+  async (formData, thunkAPI) => {
+    try {
+      return await inwardService.importInwards(formData);
+    } catch (error) {
+      const message = (
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      ) || error.message || error.toString();
+      return thunkAPI.rejectWithValue(message);
+    }
+  }
+);
+
 const initialState = {
   inwards: [],
   inward: null,
@@ -203,12 +219,12 @@ const inwardSlice = createSlice({
       .addCase(getInwards.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
-        
+
         // Handle different response formats
         if (Array.isArray(action.payload)) {
           // If payload is directly an array
           state.inwards = action.payload;
-        } 
+        }
         // Handle mongoose-paginate-v2 format (docs array with pagination info)
         else if (action.payload.docs && Array.isArray(action.payload.docs)) {
           state.inwards = action.payload.docs;
@@ -225,17 +241,17 @@ const inwardSlice = createSlice({
         // Handle response with data property
         else if (action.payload.data && Array.isArray(action.payload.data)) {
           state.inwards = action.payload.data;
-        } 
+        }
         // Handle response with inwards property
         else if (action.payload.inwards && Array.isArray(action.payload.inwards)) {
           state.inwards = action.payload.inwards;
-        } 
+        }
         // Fallback for other formats
         else {
           console.warn('Unexpected payload format in getInwards.fulfilled:', action.payload);
           state.inwards = [];
         }
-        
+
         console.log('Inwards loaded:', state.inwards);
       })
       .addCase(getInwards.rejected, (state, action) => {
@@ -354,6 +370,20 @@ const inwardSlice = createSlice({
         );
       })
       .addCase(addToInventory.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+      })
+      // Import Inwards
+      .addCase(importInwards.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(importInwards.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = true;
+        state.inwards.push(action.payload);
+      })
+      .addCase(importInwards.rejected, (state, action) => {
         state.isLoading = false;
         state.isError = true;
         state.message = action.payload;

@@ -64,6 +64,20 @@ const rentalInwardService = {
         } catch (error) {
             throw error.response?.data || { message: 'Failed to delete rental inward' };
         }
+    },
+
+    // Import rental inwards from Excel
+    importRentalInwards: async (formData) => {
+        try {
+            const response = await instance.post('/rental-inwards/import', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || { message: 'Failed to import rental inwards' };
+        }
     }
 };
 

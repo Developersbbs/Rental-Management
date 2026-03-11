@@ -10,13 +10,25 @@ const {
   rejectInward,
   completeInward,
   getInwardStats,
-  addInwardToInventory
+  addInwardToInventory,
+  importInwardsFromExcel
 } = require('../controllers/inwardController');
+const multer = require('multer');
+
+// Configure multer for memory storage
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  }
+});
 const { protect, allowRoles } = require('../middlewares/authMiddlewares');
 
 router.route('/')
   .post(protect, createInward)
   .get(protect, getInwards);
+
+router.post('/import', protect, allowRoles('superadmin', 'stockmanager'), upload.single('file'), importInwardsFromExcel);
 
 router.route('/:id')
   .get(protect, getInward)
