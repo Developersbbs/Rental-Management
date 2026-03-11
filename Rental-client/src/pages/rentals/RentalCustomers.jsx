@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { selectUser } from '../../redux/features/auth/loginSlice';
-import { Plus, Edit2, Trash2, Search, Ban, Unlock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Ban, Unlock, Upload, Download } from 'lucide-react';
 import rentalCustomerService from '../../services/rentalCustomerService';
+import ImportModal from '../../components/ImportModal';
 
 const RentalCustomers = () => {
     const user = useSelector(selectUser);
@@ -20,6 +21,8 @@ const RentalCustomers = () => {
     const [selectedCustomer, setSelectedCustomer] = useState(null); // For block modal
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [search, setSearch] = useState('');
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importing, setImporting] = useState(false);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -148,6 +151,22 @@ const RentalCustomers = () => {
         }
     };
 
+    const handleImport = async (formData) => {
+        setImporting(true);
+        setError('');
+        setSuccess('');
+        try {
+            const result = await rentalCustomerService.importRentalCustomers(formData);
+            setSuccess(result.message);
+            fetchCustomers();
+            setShowImportModal(false);
+        } catch (err) {
+            setError(err.message || 'Import failed');
+        } finally {
+            setImporting(false);
+        }
+    };
+
     const handleCloseModal = () => {
         setShowModal(false);
         setEditingCustomer(null);
@@ -193,13 +212,22 @@ const RentalCustomers = () => {
                             Manage customers for rental services
                         </p>
                     </div>
-                    <button
-                        onClick={() => setShowModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors shadow-sm"
-                    >
-                        <Plus className="w-5 h-5" />
-                        Add Customer
-                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setShowImportModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow-sm"
+                        >
+                            <Upload className="w-5 h-5" />
+                            Import Bulk
+                        </button>
+                        <button
+                            onClick={() => setShowModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors shadow-sm"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Add Customer
+                        </button>
+                    </div>
                 </div>
 
                 {error && (
@@ -404,6 +432,14 @@ const RentalCustomers = () => {
                         </div>
                     </div>
                 )}
+                {/* Import Modal */}
+                <ImportModal
+                    isOpen={showImportModal}
+                    onClose={() => setShowImportModal(false)}
+                    onImport={handleImport}
+                    title="Import Rental Customers"
+                    description="Required: Name, Phone. Optional: Email, Alt Phone, Address, Type, Company, GST, ID Type, ID Number, Deposit, Notes, Source, Referral. Refer to guide for format."
+                />
             </div>
         </div>
     );

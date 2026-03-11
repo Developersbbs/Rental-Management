@@ -15,7 +15,7 @@ const ImportModal = ({ isOpen, onClose, onImport, title = "Import Bulk Inward", 
         e.preventDefault();
 
         if (!file) {
-            toast.error('Please select an Excel file');
+            toast.error('Please select a spreadsheet file');
             return;
         }
 
@@ -25,11 +25,12 @@ const ImportModal = ({ isOpen, onClose, onImport, title = "Import Bulk Inward", 
         setIsLoading(true);
         try {
             await onImport(formData);
-            toast.success('Bulk inward imported successfully');
+            toast.success('Import completed successfully');
+            setFile(null); // Reset file input
             onClose();
         } catch (error) {
             console.error('Import error:', error);
-            const message = error.message || error || 'Failed to import bulk inward';
+            const message = typeof error === 'string' ? error : (error.message || 'Import failed');
             toast.error(message);
         } finally {
             setIsLoading(false);
@@ -49,16 +50,19 @@ const ImportModal = ({ isOpen, onClose, onImport, title = "Import Bulk Inward", 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Excel File *
+                            Select Spreadsheet File *
                         </label>
                         <input
                             type="file"
-                            accept=".xlsx, .xls"
+                            accept=".xlsx, .xls, .csv, .ods, .ots, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, application/vnd.oasis.opendocument.spreadsheet, text/csv"
                             onChange={handleFileChange}
                             className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/40 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/60"
                             required
                         />
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Supported: Excel (.xlsx, .xls), LibreOffice (.ods), and CSV
+                        </p>
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 italic">
                             {description}
                         </p>
                     </div>

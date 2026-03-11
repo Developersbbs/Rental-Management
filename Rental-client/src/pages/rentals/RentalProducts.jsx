@@ -52,6 +52,14 @@ const RentalProducts = () => {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef(null);
 
+    // Inline Category Creation state
+    const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [isSavingCategory, setIsSavingCategory] = useState(false);
+
+    // Modal Tabs
+    const [activeModalTab, setActiveModalTab] = useState('basic');
+
     useEffect(() => {
         // Fetch data if token is present in state OR localStorage
         // This solves the issue where products don't show immediately on refresh
@@ -186,6 +194,9 @@ const RentalProducts = () => {
 
     const resetForm = () => {
         setEditingProduct(null);
+        setShowNewCategoryForm(false);
+        setNewCategoryName('');
+        setActiveModalTab('basic');
         setFormData({
             name: "",
             description: "",
@@ -199,6 +210,34 @@ const RentalProducts = () => {
             serviceAlertDays: 7,
             lastServiceDate: null
         });
+    };
+
+    const handleQuickCategoryCreate = async () => {
+        if (!newCategoryName.trim()) {
+            toast.error('Please enter a category name');
+            return;
+        }
+
+        setIsSavingCategory(true);
+        try {
+            const data = await rentalCategoryService.createRentalCategory({
+                name: newCategoryName.trim(),
+                status: 'active'
+            });
+            const newCategory = data.rentalCategory || data;
+            toast.success('Category created successfully');
+
+            // Refresh categories and select the new one
+            await fetchCategories();
+            setFormData(prev => ({ ...prev, category: newCategory._id }));
+            setShowNewCategoryForm(false);
+            setNewCategoryName('');
+        } catch (error) {
+            console.error('Error creating category:', error);
+            toast.error(error.message || 'Failed to create category');
+        } finally {
+            setIsSavingCategory(false);
+        }
     };
 
     if (loading && !products.length) return <div className="p-8 text-center">Loading...</div>;
@@ -350,253 +389,321 @@ const RentalProducts = () => {
                 </div>
             )}
 
-            {/* Add/Edit Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[150] p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                        <div className="flex justify-between items-center p-6 border-b dark:border-slate-700">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                                {editingProduct ? 'Edit Rental Product' : 'Add Rental Product'}
-                            </h2>
-                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-500">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[150] p-4 transition-all duration-300">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border border-white/20 dark:border-slate-800">
+                        {/* Modal Header */}
+                        <div className="flex justify-between items-center p-6 bg-gradient-to-r from-primary/5 to-transparent border-b dark:border-slate-800">
+                            <div>
+                                <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600 dark:from-primary dark:to-blue-400">
+                                    {editingProduct ? 'Update Equipment' : 'New Equipment'}
+                                </h2>
+                                <p className="text-sm text-muted-foreground mt-0.5">
+                                    {editingProduct ? 'Modify existing rental equipment details' : 'Add new rental equipment to your inventory'}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            >
                                 <X className="w-6 h-6" />
                             </button>
                         </div>
 
+                        {/* Modal Tabs Navigation */}
+                        <div className="flex px-6 border-b dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50">
+                            {[
+                                { id: 'basic', label: 'Basic Info', icon: <Package className="w-4 h-4" /> },
+                                { id: 'pricing', label: 'Pricing', icon: <DollarSign className="w-4 h-4" /> },
+                                { id: 'service', label: 'Service', icon: <Wrench className="w-4 h-4" /> },
+                                { id: 'media', label: 'Media & Desc', icon: <ImageIcon className="w-4 h-4" /> },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveModalTab(tab.id)}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-4 text-sm font-medium border-b-2 transition-all duration-200",
+                                        activeModalTab === tab.id
+                                            ? "border-primary text-primary"
+                                            : "border-transparent text-muted-foreground hover:text-foreground hover:border-gray-200 dark:hover:border-slate-700"
+                                    )}
+                                >
+                                    {tab.icon}
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
                         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-                            <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Basic Info */}
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name *</label>
-                                            <Input
-                                                type="text"
-                                                required
-                                                value={formData.name}
-                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                            />
+                            <div className="p-8 overflow-y-auto flex-1 custom-scrollbar space-y-8">
+
+                                {/* Basic Info Tab */}
+                                {activeModalTab === 'basic' && (
+                                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                                    Product Name <span className="text-destructive">*</span>
+                                                </label>
+                                                <Input
+                                                    type="text"
+                                                    required
+                                                    placeholder="e.g., Sony A7III Camera"
+                                                    value={formData.name}
+                                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                                    className="h-11 rounded-xl bg-gray-50/50 focus:bg-white dark:bg-slate-800/50 transition-all border-gray-200 dark:border-slate-700"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                                        Category <span className="text-destructive">*</span>
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowNewCategoryForm(!showNewCategoryForm)}
+                                                        className="text-primary hover:text-primary/80 text-xs flex items-center font-bold px-2 py-1 rounded-md transition-colors"
+                                                    >
+                                                        {showNewCategoryForm ? (
+                                                            <><X className="w-3 h-3 mr-1" /> Close</>
+                                                        ) : (
+                                                            <><Plus className="w-3 h-3 mr-1" /> New Category</>
+                                                        )}
+                                                    </button>
+                                                </div>
+
+                                                {showNewCategoryForm ? (
+                                                    <div className="flex gap-2 p-1 bg-primary/5 rounded-xl border border-primary/20 animate-in zoom-in-95">
+                                                        <Input
+                                                            placeholder="Category name..."
+                                                            value={newCategoryName}
+                                                            onChange={(e) => setNewCategoryName(e.target.value)}
+                                                            className="h-10 border-none bg-transparent focus-visible:ring-0"
+                                                            autoFocus
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            onClick={handleQuickCategoryCreate}
+                                                            disabled={isSavingCategory}
+                                                            className="h-10 rounded-lg px-3 flex-shrink-0"
+                                                        >
+                                                            {isSavingCategory ? (
+                                                                <Clock className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                                <Save className="w-4 h-4" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <select
+                                                        required
+                                                        value={formData.category}
+                                                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                                        className="w-full h-11 px-4 rounded-xl text-sm bg-gray-50/50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 outline-none focus:border-primary transition-all appearance-none"
+                                                    >
+                                                        <option value="">Select Category</option>
+                                                        {categories.map(c => (
+                                                            <option key={c._id} value={c._id}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
-                                            <select
-                                                required
-                                                value={formData.category}
-                                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                                className="premium-input"
-                                            >
-                                                <option value="">Select Category</option>
-                                                {categories.map(c => (
-                                                    <option key={c._id} value={c._id}>{c.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Stock</label>
-                                            <Input
-                                                type="number"
-                                                min="0"
-                                                value={editingProduct ? editingProduct.totalQuantity : 0}
-                                                readOnly
-                                                className="bg-muted cursor-not-allowed"
-                                            />
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                Stock is managed via Inward process.
+                                        <div className="bg-amber-50/50 dark:bg-amber-900/10 p-4 rounded-2xl border border-amber-200/50 dark:border-amber-800/30">
+                                            <p className="text-xs text-amber-800 dark:text-amber-300 font-medium leading-relaxed">
+                                                Note: Stock quantity cannot be manually entered here. Use the <strong>Inward</strong> section to add stock through purchases or vendor rentals.
                                             </p>
                                         </div>
                                     </div>
+                                )}
 
-                                    {/* Rental Details */}
-                                    <div className="space-y-4">
-                                        <div className="bg-blue-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-4">
-                                            <h3 className="font-semibold text-blue-900 dark:text-blue-100 flex items-center">
-                                                <DollarSign className="w-4 h-4 mr-2" /> Rental Rates
-                                            </h3>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hourly Rate (₹)</label>
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={formData.rentalRate.hourly}
-                                                    onChange={(e) => setFormData({
-                                                        ...formData,
-                                                        rentalRate: { ...formData.rentalRate, hourly: parseFloat(e.target.value) }
-                                                    })}
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Daily Rate (₹)</label>
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={formData.rentalRate.daily}
-                                                    onChange={(e) => setFormData({
-                                                        ...formData,
-                                                        rentalRate: { ...formData.rentalRate, daily: parseFloat(e.target.value) }
-                                                    })}
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monthly Rate (₹)</label>
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={formData.rentalRate.monthly || 0}
-                                                    onChange={(e) => setFormData({
-                                                        ...formData,
-                                                        rentalRate: { ...formData.rentalRate, monthly: parseFloat(e.target.value) || 0 }
-                                                    })}
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Rental Hours</label>
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    value={formData.minRentalHours}
-                                                    onChange={(e) => setFormData({ ...formData, minRentalHours: parseInt(e.target.value) })}
-                                                />
-                                            </div>
+                                {/* Pricing Tab */}
+                                {activeModalTab === 'pricing' && (
+                                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {[
+                                                { id: 'hourly', label: 'Hourly Rate', icon: <Clock className="w-4 h-4" /> },
+                                                { id: 'daily', label: 'Daily Rate', icon: <Clock className="w-4 h-4" /> },
+                                                { id: 'monthly', label: 'Monthly Rate', icon: <Clock className="w-4 h-4" /> },
+                                            ].map((rate) => (
+                                                <div key={rate.id} className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                                        {rate.icon} {rate.label}
+                                                    </label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">₹</span>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            value={formData.rentalRate[rate.id]}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                rentalRate: { ...formData.rentalRate, [rate.id]: parseFloat(e.target.value) || 0 }
+                                                            })}
+                                                            className="h-10 pl-7 rounded-lg border-none bg-white dark:bg-slate-900 shadow-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
 
-                                        {/* Service Tracking Section */}
-                                        <div className="bg-green-50 dark:bg-slate-700/50 p-4 rounded-lg space-y-4">
-                                            <h3 className="font-semibold text-green-900 dark:text-green-100 flex items-center">
-                                                <Wrench className="w-4 h-4 mr-2" /> Service Tracking
-                                            </h3>
+                                        <div className="space-y-2 max-w-xs">
+                                            <label className="text-sm font-semibold flex items-center gap-2">
+                                                Minimum Rental Hours
+                                            </label>
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                value={formData.minRentalHours}
+                                                onChange={(e) => setFormData({ ...formData, minRentalHours: parseInt(e.target.value) || 1 })}
+                                                className="h-11 rounded-xl bg-gray-50/50 dark:bg-slate-800/50"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
 
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {/* Service Tab */}
+                                {activeModalTab === 'service' && (
+                                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
                                                     Service Interval (Days)
                                                 </label>
                                                 <Input
                                                     type="number"
                                                     min="0"
-                                                    placeholder="e.g., 30, 90, 180"
+                                                    placeholder="e.g., 30 for monthly service"
                                                     value={formData.serviceInterval || ''}
                                                     onChange={(e) => setFormData({ ...formData, serviceInterval: e.target.value ? parseInt(e.target.value) : null })}
+                                                    className="h-11 rounded-xl"
                                                 />
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    How often this product needs service (e.g., every 30 days)
-                                                </p>
+                                                <p className="text-[11px] text-muted-foreground italic">Leave empty if no regular service is required.</p>
                                             </div>
 
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    Alert Before (Days)
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                                    Notification Alert (Days)
                                                 </label>
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    value={formData.serviceAlertDays}
-                                                    onChange={(e) => setFormData({ ...formData, serviceAlertDays: parseInt(e.target.value) || 7 })}
-                                                />
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    Show alert this many days before service is due
-                                                </p>
-                                            </div>
-
-                                            {editingProduct && editingProduct.lastServiceDate && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                        Last Service Date
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={new Date(editingProduct.lastServiceDate).toLocaleDateString()}
-                                                        readOnly
-                                                        className="w-full p-2 border rounded-lg bg-gray-100 dark:bg-slate-600 dark:border-slate-500 dark:text-gray-300 cursor-not-allowed"
+                                                <div className="flex items-center gap-4">
+                                                    <Input
+                                                        type="number"
+                                                        min="1"
+                                                        value={formData.serviceAlertDays}
+                                                        onChange={(e) => setFormData({ ...formData, serviceAlertDays: parseInt(e.target.value) || 7 })}
+                                                        className="h-11 rounded-xl w-32"
                                                     />
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                        Updated automatically when service is recorded
-                                                    </p>
+                                                    <span className="text-sm text-muted-foreground">days before due date</span>
                                                 </div>
-                                            )}
+                                            </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Product Images</label>
+                                        {editingProduct && editingProduct.lastServiceDate && (
+                                            <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 flex items-center gap-4">
+                                                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                                    <Clock className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[11px] font-bold uppercase tracking-widest text-blue-600/70 dark:text-blue-400/70">Last Service Recorded</p>
+                                                    <p className="text-sm font-semibold">{new Date(editingProduct.lastServiceDate).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                                            {/* Display uploaded images */}
-                                            {formData.images && formData.images.length > 0 && (
-                                                <div className="grid grid-cols-3 gap-3 mb-4">
-                                                    {formData.images.map((imageUrl, index) => (
-                                                        <div key={index} className="relative group">
-                                                            <img
-                                                                src={imageUrl}
-                                                                alt={`Product ${index + 1}`}
-                                                                className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
-                                                            />
+                                {/* Media & Desc Tab */}
+                                {activeModalTab === 'media' && (
+                                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="space-y-4">
+                                            <label className="text-sm font-semibold flex items-center gap-2">
+                                                Equipment Images
+                                            </label>
+
+                                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                                                {/* Upload Trigger Card */}
+                                                <label className="cursor-pointer group relative flex flex-col items-center justify-center h-24 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 transition-all outline-none">
+                                                    <div className="flex flex-col items-center gap-1 group-hover:scale-110 transition-transform">
+                                                        {uploading ? (
+                                                            <Clock className="w-6 h-6 animate-spin text-primary" />
+                                                        ) : (
+                                                            <Upload className="w-6 h-6 text-muted-foreground group-hover:text-primary" />
+                                                        )}
+                                                        <span className="text-[10px] font-bold uppercase text-muted-foreground group-hover:text-primary">
+                                                            {uploading ? '...' : 'Add'}
+                                                        </span>
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        ref={fileInputRef}
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        onChange={handleImageUpload}
+                                                        disabled={uploading}
+                                                    />
+                                                </label>
+
+                                                {/* Previews */}
+                                                {formData.images?.map((imageUrl, index) => (
+                                                    <div key={index} className="relative h-24 rounded-2xl overflow-hidden border dark:border-slate-800 group shadow-sm bg-muted animate-in zoom-in-75">
+                                                        <img src={imageUrl} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => {
-                                                                    if (window.confirm('Remove this image?')) {
-                                                                        setFormData(prev => ({
-                                                                            ...prev,
-                                                                            images: prev.images.filter((_, i) => i !== index)
-                                                                        }));
-                                                                    }
-                                                                }}
-                                                                className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                                                title="Remove image"
+                                                                onClick={() => setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }))}
+                                                                className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-lg"
                                                             >
-                                                                <X className="w-3 h-3" />
+                                                                <Trash2 className="w-4 h-4" />
                                                             </button>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                        {index === 0 && (
+                                                            <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-primary/90 text-[8px] font-bold text-white rounded uppercase tracking-tighter">Cover</span>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
 
-                                            {/* Upload button */}
-                                            <label className="cursor-pointer bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-gray-300 px-4 py-3 rounded-lg flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-500 transition-colors">
-                                                <Upload className="w-4 h-4 mr-2" />
-                                                {uploading ? 'Uploading...' : 'Upload Image'}
-                                                <input
-                                                    type="file"
-                                                    ref={fileInputRef}
-                                                    className="hidden"
-                                                    accept="image/*"
-                                                    onChange={handleImageUpload}
-                                                    disabled={uploading}
-                                                />
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold flex items-center gap-2">
+                                                Equipment Description
                                             </label>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                                You can upload multiple images. Hover over an image to remove it.
-                                            </p>
+                                            <textarea
+                                                rows="4"
+                                                placeholder="Write a brief description about the equipment, its features, and included accessories..."
+                                                value={formData.description}
+                                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                                className="w-full p-4 rounded-2xl text-sm bg-gray-50/50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 outline-none focus:border-primary transition-all resize-none min-h-[120px]"
+                                            />
                                         </div>
                                     </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                                    <textarea
-                                        rows="3"
-                                        value={formData.description}
-                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        className="premium-input min-h-[80px] py-3"
-                                    />
-                                </div>
-
+                                )}
                             </div>
 
-                            <div className="flex justify-end gap-3 p-6 border-t dark:border-slate-700 bg-white dark:bg-slate-800 rounded-b-xl">
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={() => setShowModal(false)}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button type="submit">
-                                    <Save className="w-4 h-4 mr-2" />
-                                    {editingProduct ? 'Update Product' : 'Create Product'}
-                                </Button>
+                            {/* Sticky Modal Footer */}
+                            <div className="flex justify-between items-center px-8 py-6 border-t dark:border-slate-800 bg-white dark:bg-slate-900">
+                                <div className="text-xs text-muted-foreground hidden sm:block">
+                                    <span className="text-destructive font-bold">*</span> Indicates required field
+                                </div>
+                                <div className="flex gap-3 ml-auto">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setShowModal(false)}
+                                        className="rounded-xl px-6 h-11"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        className="rounded-xl px-8 h-11 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
+                                    >
+                                        <Save className="w-5 h-5" />
+                                        {editingProduct ? 'Update Equipment' : 'Publish Product'}
+                                    </Button>
+                                </div>
                             </div>
                         </form>
                     </div>

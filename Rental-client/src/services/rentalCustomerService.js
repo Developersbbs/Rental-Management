@@ -67,7 +67,20 @@ const rentalCustomerService = {
             const response = await instance.patch(`/rental-customers/${id}/unblock`);
             return response.data;
         } catch (error) {
-            throw error.response?.data || { message: 'Failed to unblock rental customer' };
+            throw error.response?.data || error;
+        }
+    },
+
+    importRentalCustomers: async (formData) => {
+        try {
+            const response = await instance.post('/rental-customers/import', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error;
         }
     }
 };

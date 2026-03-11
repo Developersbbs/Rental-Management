@@ -7,9 +7,12 @@ const {
     updateRentalCustomer,
     deleteRentalCustomer,
     blockRentalCustomer,
-    unblockRentalCustomer
+    unblockRentalCustomer,
+    importRentalCustomersFromExcel
 } = require('../controllers/rentalCustomerController');
 const { protect, allowRoles } = require('../middlewares/authMiddlewares');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.use(protect);
 
@@ -33,5 +36,8 @@ router.patch('/:id/unblock', allowRoles('superadmin'), unblockRentalCustomer);
 
 // DELETE /api/rental-customers/:id - Delete rental customer
 router.delete('/:id', allowRoles('superadmin'), deleteRentalCustomer);
+
+// POST /api/rental-customers/import - Import customers from Excel
+router.post('/import', allowRoles('superadmin', 'staff'), upload.single('file'), importRentalCustomersFromExcel);
 
 module.exports = router;

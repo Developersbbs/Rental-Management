@@ -417,7 +417,19 @@ const Inward = () => {
           <ImportModal
             isOpen={showImportModal}
             onClose={() => setShowImportModal(false)}
-            suppliers={suppliers}
+            onImport={async (formData) => {
+              try {
+                const accessoryInwardService = (await import('@/services/accessoryInwardService')).default;
+                const result = await accessoryInwardService.importAccessoryInwards(formData);
+                toast.success(result.message);
+                dispatch(getInwards(filters));
+                setShowImportModal(false);
+              } catch (error) {
+                toast.error(error.message || 'Import failed');
+              }
+            }}
+            title="Import Bulk Inward"
+            description="Columns: Product Name, Received Quantity, Unit Cost, ordered Quantity, Batch Number, Mfg Date, Expiry Date, Notes"
           />
         </>
       )}
