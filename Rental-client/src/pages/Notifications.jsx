@@ -195,14 +195,14 @@ const Notifications = () => {
   const renderStatusBadge = (item) => {
     if (!item.isRead) {
       return (
-        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full min-w-fit">
+        <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200 shadow-sm">
           Unread
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full min-w-fit">
+      <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm">
         Read
       </span>
     );
@@ -442,16 +442,16 @@ const Notifications = () => {
 
       {/* Notification Popup/Modal */}
       {isPopupOpen && selectedNotification && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-[200] overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen p-4 text-center">
             {/* Background overlay */}
             <div
-              className="fixed inset-0 bg-slate-900 bg-opacity-50 transition-opacity"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
               onClick={handleClosePopup}
             ></div>
 
             {/* Modal panel */}
-            <div className="relative inline-block w-full max-w-2xl p-0 bg-gray-100 rounded-xl text-left overflow-hidden shadow-2xl transform transition-all align-middle">
+            <div className="relative inline-block w-full max-w-2xl p-0 bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all align-middle animate-in fade-in zoom-in duration-200">
               {/* Header */}
               <div className="bg-gradient-to-r from-blue-900 to-blue-700 px-4 sm:px-6 py-3 sm:py-4">
                 <div className="flex items-center justify-between">
