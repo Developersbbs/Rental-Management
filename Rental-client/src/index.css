@@ -270,6 +270,15 @@
   .badge-outline {
     @apply text-foreground;
   }
+
+  /* ── Sidebar accordion animation ── */
+  /* grid-rows-[0fr] and grid-rows-[1fr] enable smooth height transitions */
+  .grid-rows-\[0fr\] {
+    grid-template-rows: 0fr;
+  }
+  .grid-rows-\[1fr\] {
+    grid-template-rows: 1fr;
+  }
 }
 
 /* Custom Toastify Styles */

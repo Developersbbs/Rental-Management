@@ -20,7 +20,7 @@ const Layout = () => {
     <div className="flex h-screen bg-muted/30">
       {/* 🔹 Desktop Sidebar (only for authenticated users) */}
       {user && (
-        <div className="hidden md:block">
+        <div className="hidden md:flex">
           <Sidebar onNavigate={handleCloseSidebar} />
         </div>
       )}

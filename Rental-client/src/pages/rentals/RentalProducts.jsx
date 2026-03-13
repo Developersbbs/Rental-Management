@@ -5,7 +5,7 @@ import { selectUser } from '../../redux/features/auth/loginSlice';
 import axios from 'axios';
 import rentalProductService from '@/services/rentalProductService';
 import rentalCategoryService from '@/services/rentalCategoryService';
-import { Search, Plus, Edit2, Trash2, Save, X, Filter, Upload, Image as ImageIcon, Clock, DollarSign, Package, Layers, Wrench, Bell, RefreshCw } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Save, X, Filter, Upload, Image as ImageIcon, Clock, DollarSign, Package, Layers, Wrench, Bell, RefreshCw, ChevronLeft, ChevronRight, Tag, Hash, Calendar } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,7 @@ const RentalProducts = () => {
     // Local state
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const [categories, setCategories] = useState([]);
 
     // Form states
@@ -62,6 +63,10 @@ const RentalProducts = () => {
     const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [isSavingCategory, setIsSavingCategory] = useState(false);
+
+    // Detail popup state
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [detailImageIndex, setDetailImageIndex] = useState(0);
 
     // Modal Tabs
     const [activeModalTab, setActiveModalTab] = useState('basic');
@@ -324,8 +329,13 @@ const RentalProducts = () => {
             {/* Product Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map(product => (
-                    <Card key={product._id} className="overflow-hidden group">
-                        <div className="relative h-48 bg-muted/30">
+                    <Card
+                        key={product._id}
+                        className="overflow-hidden group flex flex-col cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                        onClick={() => { setSelectedProduct(product); setDetailImageIndex(0); }}
+                    >
+                        {/* Product Image */}
+                        <div className="relative h-44 bg-muted/30 shrink-0">
                             {product.images && product.images.length > 0 ? (
                                 <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                             ) : (
@@ -333,67 +343,49 @@ const RentalProducts = () => {
                                     <ImageIcon className="w-12 h-12 opacity-20" />
                                 </div>
                             )}
-                            <div className="absolute top-2 right-2 flex gap-2 transition-all duration-200">
-                                <Button
-                                    variant="secondary"
-                                    size="icon"
-                                    onClick={() => navigate(`/rentals/products/${product._id}/items`)}
-                                    className="h-8 w-8 bg-white/90 dark:bg-slate-800/90 text-green-600 hover:text-green-700 shadow-sm backdrop-blur"
-                                    title="Manage Items"
-                                >
-                                    <Package className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    size="icon"
-                                    onClick={() => navigate(`/rentals/products/${product._id}/accessories`)}
-                                    className="h-8 w-8 bg-white/90 dark:bg-slate-800/90 text-purple-600 hover:text-purple-700 shadow-sm backdrop-blur"
-                                    title="Manage Accessories"
-                                >
-                                    <Layers className="w-4 h-4" />
-                                </Button>
-                                {isSuperAdmin && (
+                            {/* Stock badge */}
+                            <span className={cn(
+                                "absolute top-2 left-2 px-2 py-1 text-[10px] font-bold uppercase rounded-full border backdrop-blur",
+                                product.availableQuantity > 0
+                                    ? 'bg-green-50/90 text-green-700 border-green-200'
+                                    : 'bg-destructive/10 text-destructive border-destructive/20'
+                            )}>
+                                {product.availableQuantity > 0 ? `${product.availableQuantity} in stock` : 'Out of stock'}
+                            </span>
+                            {/* SuperAdmin overlay edit/delete buttons */}
+                            {isSuperAdmin && (
+                                <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                     <Button
                                         variant="secondary"
                                         size="icon"
-                                        onClick={() => handleEdit(product)}
-                                        className="h-8 w-8 bg-white/90 dark:bg-slate-800/90 text-primary hover:text-primary shadow-sm backdrop-blur"
+                                        onClick={(e) => { e.stopPropagation(); handleEdit(product); }}
+                                        className="h-7 w-7 bg-white/90 dark:bg-slate-800/90 text-primary hover:text-primary shadow-sm backdrop-blur"
                                         title="Edit Product"
                                     >
-                                        <Edit2 className="w-4 h-4" />
+                                        <Edit2 className="w-3.5 h-3.5" />
                                     </Button>
-                                )}
-                                {isSuperAdmin && (
                                     <Button
                                         variant="secondary"
                                         size="icon"
-                                        onClick={() => handleDelete(product._id)}
-                                        className="h-8 w-8 bg-white/90 dark:bg-slate-800/90 text-destructive hover:text-destructive shadow-sm backdrop-blur"
+                                        onClick={(e) => { e.stopPropagation(); handleDelete(product._id); }}
+                                        className="h-7 w-7 bg-white/90 dark:bg-slate-800/90 text-destructive hover:text-destructive shadow-sm backdrop-blur"
                                         title="Delete Product"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="p-4">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="min-w-0">
-                                    <h3 className="font-bold text-lg truncate pr-2" title={product.name}>{product.name}</h3>
-                                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">{product.category?.name || 'Uncategorized'}</p>
-                                </div>
-                                <span className={cn(
-                                    "px-2 py-1 text-[10px] font-bold uppercase rounded-full border",
-                                    product.availableQuantity > 0
-                                        ? 'bg-green-50 text-green-700 border-green-200'
-                                        : 'bg-destructive/10 text-destructive border-destructive/20'
-                                )}>
-                                    {product.availableQuantity > 0 ? `${product.availableQuantity} in stock` : 'Out of stock'}
-                                </span>
+                        {/* Product Info */}
+                        <div className="p-4 flex flex-col flex-1">
+                            <div className="mb-3">
+                                <h3 className="font-bold text-base truncate pr-2" title={product.name}>{product.name}</h3>
+                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mt-0.5">{product.category?.name || 'Uncategorized'}</p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
+                            {/* Rental Rates */}
+                            <div className="grid grid-cols-2 gap-2 mb-4">
                                 <div className="text-center p-2 rounded-lg bg-muted/30">
                                     <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Hourly</p>
                                     <p className="text-sm font-bold">₹{product.rentalRate?.hourly || 0}</p>
@@ -403,10 +395,198 @@ const RentalProducts = () => {
                                     <p className="text-sm font-bold text-primary">₹{product.rentalRate?.daily || 0}</p>
                                 </div>
                             </div>
+
+                            {/* Action Buttons – always visible, labeled */}
+                            <div className="mt-auto flex gap-2 pt-3 border-t border-border/50">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/rentals/products/${product._id}/items`); }}
+                                    className="flex-1 h-8 text-xs gap-1.5 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-400"
+                                >
+                                    <Package className="w-3.5 h-3.5" />
+                                    Items
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/rentals/products/${product._id}/accessories`); }}
+                                    className="flex-1 h-8 text-xs gap-1.5 text-purple-600 border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-400"
+                                >
+                                    <Layers className="w-3.5 h-3.5" />
+                                    Accessories
+                                </Button>
+                            </div>
                         </div>
                     </Card>
                 ))}
             </div>
+
+            {/* ─────────── Product Detail Popup ─────────── */}
+            {selectedProduct && (
+                <div
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+                    onClick={() => setSelectedProduct(null)}
+                >
+                    <div
+                        className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Image section with gallery */}
+                        <div className="relative h-56 bg-muted/30 shrink-0">
+                            {selectedProduct.images && selectedProduct.images.length > 0 ? (
+                                <>
+                                    <img
+                                        src={selectedProduct.images[detailImageIndex]}
+                                        alt={selectedProduct.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                    {/* Image counter */}
+                                    {selectedProduct.images.length > 1 && (
+                                        <>
+                                            <button
+                                                onClick={() => setDetailImageIndex(i => (i - 1 + selectedProduct.images.length) % selectedProduct.images.length)}
+                                                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center transition-colors"
+                                            ><ChevronLeft className="w-4 h-4" /></button>
+                                            <button
+                                                onClick={() => setDetailImageIndex(i => (i + 1) % selectedProduct.images.length)}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center transition-colors"
+                                            ><ChevronRight className="w-4 h-4" /></button>
+                                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                                {selectedProduct.images.map((_, i) => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => setDetailImageIndex(i)}
+                                                        className={cn('w-1.5 h-1.5 rounded-full transition-all', i === detailImageIndex ? 'bg-white scale-125' : 'bg-white/50')}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-muted-foreground">
+                                    <ImageIcon className="w-16 h-16 opacity-20" />
+                                </div>
+                            )}
+
+                            {/* Close button */}
+                            <button
+                                onClick={() => setSelectedProduct(null)}
+                                className="absolute top-3 right-3 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+
+                            {/* Stock badge */}
+                            <span className={cn(
+                                'absolute top-3 left-3 px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border backdrop-blur',
+                                selectedProduct.availableQuantity > 0
+                                    ? 'bg-green-50/90 text-green-700 border-green-200'
+                                    : 'bg-red-50/90 text-red-700 border-red-200'
+                            )}>
+                                {selectedProduct.availableQuantity > 0 ? `${selectedProduct.availableQuantity} in stock` : 'Out of stock'}
+                            </span>
+                        </div>
+
+                        {/* Scrollable content */}
+                        <div className="overflow-y-auto flex-1 p-6 space-y-5">
+                            {/* Title + category */}
+                            <div>
+                                <h2 className="text-2xl font-bold text-foreground">{selectedProduct.name}</h2>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                                    <span className="text-sm text-muted-foreground font-medium">{selectedProduct.category?.name || 'Uncategorized'}</span>
+                                    {selectedProduct.ownershipType === 'sub_rented' && (
+                                        <span className="ml-2 px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-100 text-amber-700 border border-amber-200 rounded-full">Vendor</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Description */}
+                            {selectedProduct.description && (
+                                <p className="text-sm text-muted-foreground leading-relaxed bg-muted/30 rounded-xl p-3">
+                                    {selectedProduct.description}
+                                </p>
+                            )}
+
+                            {/* Rental Rates */}
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Rental Rates</p>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {[
+                                        { label: 'Hourly', value: selectedProduct.rentalRate?.hourly, color: 'bg-slate-50 dark:bg-slate-800' },
+                                        { label: 'Daily', value: selectedProduct.rentalRate?.daily, color: 'bg-primary/5' },
+                                        { label: 'Monthly', value: selectedProduct.rentalRate?.monthly, color: 'bg-purple-50 dark:bg-purple-900/20' },
+                                    ].map(r => (
+                                        <div key={r.label} className={cn('text-center p-3 rounded-xl', r.color)}>
+                                            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">{r.label}</p>
+                                            <p className="text-lg font-bold">₹{r.value || 0}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Min rental hours + Service interval */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
+                                    <Clock className="w-5 h-5 text-muted-foreground shrink-0" />
+                                    <div>
+                                        <p className="text-[10px] uppercase font-semibold text-muted-foreground">Min Rental</p>
+                                        <p className="text-sm font-bold">{selectedProduct.minRentalHours || 1} hr(s)</p>
+                                    </div>
+                                </div>
+                                {selectedProduct.serviceInterval && (
+                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200/50">
+                                        <Wrench className="w-5 h-5 text-amber-600 shrink-0" />
+                                        <div>
+                                            <p className="text-[10px] uppercase font-semibold text-amber-600/70">Service Every</p>
+                                            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{selectedProduct.serviceInterval} days</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {selectedProduct.lastServiceDate && (
+                                    <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200/50">
+                                        <Calendar className="w-5 h-5 text-blue-600 shrink-0" />
+                                        <div>
+                                            <p className="text-[10px] uppercase font-semibold text-blue-600/70">Last Service</p>
+                                            <p className="text-sm font-bold text-blue-700 dark:text-blue-400">{new Date(selectedProduct.lastServiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Footer actions */}
+                        <div className="flex gap-3 p-4 border-t border-border bg-muted/20">
+                            <Button
+                                variant="outline"
+                                className="flex-1 gap-2 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                onClick={() => { setSelectedProduct(null); navigate(`/rentals/products/${selectedProduct._id}/items`); }}
+                            >
+                                <Package className="w-4 h-4" /> Manage Items
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="flex-1 gap-2 text-purple-600 border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                                onClick={() => { setSelectedProduct(null); navigate(`/rentals/products/${selectedProduct._id}/accessories`); }}
+                            >
+                                <Layers className="w-4 h-4" /> Manage Accessories
+                            </Button>
+                            {isSuperAdmin && (
+                                <Button
+                                    variant="outline"
+                                    className="gap-2"
+                                    onClick={() => { setSelectedProduct(null); handleEdit(selectedProduct); }}
+                                >
+                                    <Edit2 className="w-4 h-4" /> Edit
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ──────────────────────────────────────────── */}
 
             {products.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
