@@ -519,11 +519,27 @@ exports.getRentalStats = async (req, res) => {
         ]);
         const totalMissingProfit = missingProfitResult.length > 0 ? missingProfitResult[0].totalMissingProfit : 0;
 
+        // Calculate total inventory value from all non-archived items
+        const inventoryValueResult = await RentalInventoryItem.aggregate([
+            { $match: { isArchived: { $ne: true } } },
+            { $group: { _id: null, total: { $sum: "$purchaseCost" } } }
+        ]);
+        const totalInventoryValue = inventoryValueResult.length > 0 ? inventoryValueResult[0].total : 0;
+
+        // Calculate total pending amount from rental bills
+        const pendingAmountResult = await Bill.aggregate([
+            { $match: { type: 'rental' } },
+            { $group: { _id: null, total: { $sum: "$dueAmount" } } }
+        ]);
+        const rentalPendingAmount = pendingAmountResult.length > 0 ? pendingAmountResult[0].total : 0;
+
         res.status(200).json({
             activeRentals,
             completedRentals,
             totalRevenue,
-            totalMissingProfit
+            totalMissingProfit,
+            totalInventoryValue,
+            rentalPendingAmount
         });
     } catch (err) {
         console.error('Error in getRentalStats:', err);

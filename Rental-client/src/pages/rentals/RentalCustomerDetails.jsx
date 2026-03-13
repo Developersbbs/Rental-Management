@@ -349,10 +349,6 @@ const RentalCustomerDetails = () => {
                         <p className="text-gray-900 dark:text-slate-200 capitalize">{customer.idProof?.type ? `${customer.idProof.type}: ${customer.idProof.number}` : 'N/A'}</p>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-500 uppercase font-semibold">Deposit Held</label>
-                        <p className="text-gray-900 dark:text-slate-200 font-medium">₹{customer.deposit}</p>
-                    </div>
-                    <div>
                         <label className="text-xs text-gray-500 uppercase font-semibold">Referral</label>
                         <p className="text-gray-900 dark:text-slate-200">{customer.referral?.isGuest ? 'Guest' : (customer.referral?.source || 'N/A')}</p>
                     </div>

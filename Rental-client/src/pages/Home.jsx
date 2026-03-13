@@ -5,7 +5,8 @@ import { selectUser } from '../redux/features/auth/loginSlice';
 import {
   Package, Users, ShoppingCart, AlertTriangle, TrendingUp, TrendingDown,
   DollarSign, Activity, UserPlus, FileText, Bell, Settings,
-  Calendar, Clock, CheckCircle, XCircle, Eye, Edit, Trash2, ArrowRight
+  Calendar, Clock, CheckCircle, XCircle, Eye, Edit, Trash2, ArrowRight,
+  ShieldCheck, Database
 } from 'lucide-react';
 import productService from '../services/productService';
 import billApiService from '../services/billApiService';
@@ -114,28 +115,13 @@ const Home = () => {
       console.log('Rental Count:', rentalCustomersList.length);
       console.log('Combined Total:', salesCustomers.length + rentalCustomersList.length);
 
-      // Use only rental customers count as requested
-      const totalCustomersCount = rentalCustomersList.length;
+      // Combine regular and rental counts
+      const totalProductsCount = allProducts.length + allRentalProducts.length;
+      const totalCustomersCount = salesCustomers.length + rentalCustomersList.length;
 
-      // Calculate rental inventory value from rental products
-      const rentalInventoryValue = allRentalProducts.reduce((total, product) => {
-        const value = (product.purchasePrice || 0) * (product.totalQuantity || 0);
-        return total + value;
-      }, 0);
-
-      // Get all rentals for rental bills count
-      const allRentals = Array.isArray(rentals) ? rentals : [];
-
-      // Get all bills
-      const allBills = Array.isArray(bills.bills) ? bills.bills : (Array.isArray(bills) ? bills : []);
-
-      // Calculate rental pending payments from rental bills (type === 'rental')
-      // Sum up dueAmount from all rental bills that are not fully paid
-      const rentalPendingAmount = allBills
-        .filter(bill => bill.type === 'rental' && bill.paymentStatus !== 'paid')
-        .reduce((total, bill) => {
-          return total + (bill.dueAmount || 0);
-        }, 0);
+      // Use backend stats for accurate values
+      const rentalInventoryValue = rentalStats?.totalInventoryValue || 0;
+      const rentalPendingAmount = rentalStats?.rentalPendingAmount || 0;
 
       // Combine out of stock items from both regular products and rental products
       const outOfStockRegularProducts = allProducts.filter(p => p.quantity === 0).map(p => ({
@@ -159,10 +145,13 @@ const Home = () => {
         rentalCustomers: rentalCustomersList, // Store rental customers
         totalCustomersCount: totalCustomersCount, // Use this for the card
         bills: Array.isArray(bills.bills) ? bills.bills : (Array.isArray(bills) ? bills : []),
-        rentalBillsCount: allRentals.length, // Rental bills count
+        rentalBillsCount: (Array.isArray(rentals) ? rentals : []).length, // Rental bills count
         rentalInventoryValue: rentalInventoryValue, // Rental inventory value
         rentalPendingAmount: rentalPendingAmount, // Rental pending payments
-        stats: stats || productService.calculateStats(allProducts),
+        stats: {
+          ...(stats || productService.calculateStats(allProducts)),
+          total: totalProductsCount // Use combined total
+        },
         billStats: billStats || { totalPendingAmount: 0, pendingPayments: 0 },
         recentBills: (Array.isArray(bills.bills) ? bills.bills : (Array.isArray(bills) ? bills : [])).slice(0, 5),
         recentCustomers: salesCustomers.slice(0, 5),
@@ -181,20 +170,24 @@ const Home = () => {
 
   const fetchStockManagerData = async () => {
     try {
-      const [products, categories] = await Promise.all([
+      const [products, categories, rentalProducts] = await Promise.all([
         productService.getAllProducts(),
         productService.getCategories(),
-        productService.getLowStockProducts()
+        rentalProductService.getAllRentalProducts()
       ]);
 
       const productsData = Array.isArray(products.products) ? products.products : (Array.isArray(products) ? products : []);
+      const allRentalProducts = Array.isArray(rentalProducts.rentalProducts) ? rentalProducts.rentalProducts : (Array.isArray(rentalProducts) ? rentalProducts : []);
 
       return {
         products: productsData,
         categories: Array.isArray(categories.categories) ? categories.categories : (Array.isArray(categories) ? categories : []),
         lowStockProducts: productsData.filter(p => p.quantity > 0 && p.quantity <= 10).sort((a, b) => a.quantity - b.quantity),
         availableInventory: productsData.filter(p => p.quantity > 10).sort((a, b) => b.quantity - a.quantity),
-        stats: productService.calculateStats(productsData),
+        stats: {
+          ...productService.calculateStats(productsData),
+          total: productsData.length + allRentalProducts.length
+        },
         outOfStockProducts: productsData.filter(p => p.quantity === 0)
       };
     } catch (err) {
@@ -262,7 +255,7 @@ const Home = () => {
             </div>
             <div className="mt-4">
               <h3 className="text-3xl font-bold tracking-tight">{dashboardData.stats?.total || 0}</h3>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Products</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Products (Sales + Rental)</p>
             </div>
           </CardContent>
         </Card>
@@ -280,7 +273,7 @@ const Home = () => {
             <div className="mt-4">
               {/* Display Rental Customers Count */}
               <h3 className="text-3xl font-bold tracking-tight">{dashboardData.totalCustomersCount || 0}</h3>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Rental Customers</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Customers (Sales + Rental)</p>
             </div>
           </CardContent>
         </Card>
@@ -343,6 +336,30 @@ const Home = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Rental Inventory Value Card */}
+        <Card
+          className="hover:shadow-md transition-all duration-300 border-l-4 border-l-emerald-500 cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-950/20 shadow-sm"
+          onClick={() => navigate('/reports', { state: { activeTab: 'inventory' } })}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="p-2.5 bg-emerald-500/10 rounded-xl">
+                <Database className="w-5 h-5 text-emerald-500" />
+              </div>
+              <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                <ShieldCheck className="w-3 h-3" />
+                Live Value
+              </div>
+            </div>
+            <div className="mt-4">
+              <h3 className="text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                ₹{(dashboardData.rentalInventoryValue || 0).toLocaleString()}
+              </h3>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Rental Inventory Value</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Rental Metrics */}
@@ -396,10 +413,10 @@ const Home = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card >
 
       {/* Return Time Notifications */}
-      <Card className="border-border overflow-hidden">
+      < Card className="border-border overflow-hidden" >
         <CardHeader className="flex flex-row items-center justify-between pb-4">
           <CardTitle className="text-xl flex items-center font-bold">
             <div className="p-2 bg-destructive/10 rounded-lg mr-3">
@@ -441,12 +458,12 @@ const Home = () => {
             )}
           </div>
         </CardContent>
-      </Card>
+      </Card >
 
       {/* Inventory & Low Stock Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      < div className="grid grid-cols-1 lg:grid-cols-3 gap-8" >
         {/* Low Stock Attention */}
-        <Card className="border-destructive/20 bg-destructive/5">
+        < Card className="border-destructive/20 bg-destructive/5" >
           <CardHeader className="flex flex-row items-center justify-between pb-4">
             <CardTitle className="text-lg flex items-center font-bold text-destructive">
               <AlertTriangle className="w-5 h-5 mr-3" />
@@ -485,10 +502,10 @@ const Home = () => {
               )}
             </div>
           </CardContent>
-        </Card>
+        </Card >
 
         {/* Out of Stock */}
-        <Card className="border-destructive/20 bg-destructive/5">
+        < Card className="border-destructive/20 bg-destructive/5" >
           <CardHeader className="flex flex-row items-center justify-between pb-4">
             <CardTitle className="text-lg flex items-center font-bold text-destructive">
               <XCircle className="w-5 h-5 mr-3" />
@@ -524,10 +541,10 @@ const Home = () => {
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card >
 
         {/* Available Inventory */}
-        <Card className="border-emerald-500/20 bg-emerald-500/5">
+        < Card className="border-emerald-500/20 bg-emerald-500/5" >
           <CardHeader className="flex flex-row items-center justify-between pb-4">
             <CardTitle className="text-lg flex items-center font-bold text-emerald-600">
               <Package className="w-5 h-5 mr-3" />
@@ -560,9 +577,9 @@ const Home = () => {
               ))}
             </div>
           </CardContent>
-        </Card>
-      </div>
-    </div>
+        </Card >
+      </div >
+    </div >
   );
 
   const renderStockManagerDashboard = () => (
@@ -600,7 +617,7 @@ const Home = () => {
             </div>
             <div className="mt-4">
               <h3 className="text-3xl font-bold tracking-tight">{dashboardData.stats?.total || 0}</h3>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Products</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Products (Sales + Rental)</p>
             </div>
           </CardContent>
         </Card>

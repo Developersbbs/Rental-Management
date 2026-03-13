@@ -54,11 +54,6 @@ const rentalCustomerSchema = new mongoose.Schema({
             type: String  // URL to uploaded document
         }
     },
-    deposit: {
-        type: Number,
-        default: 0,
-        min: 0
-    },
     status: {
         type: String,
         enum: ['active', 'inactive', 'blocked'],

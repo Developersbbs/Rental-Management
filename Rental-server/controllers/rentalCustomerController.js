@@ -4,7 +4,7 @@ const xlsx = require('xlsx');
 // Create rental customer
 exports.createRentalCustomer = async (req, res) => {
     try {
-        const { name, email, phone, alternativePhone, address, idProof, deposit, notes, referral, customerType, companyName, gstNumber } = req.body;
+        const { name, email, phone, alternativePhone, address, idProof, notes, referral, customerType, companyName, gstNumber } = req.body;
 
 
         const rentalCustomer = new RentalCustomer({
@@ -14,7 +14,6 @@ exports.createRentalCustomer = async (req, res) => {
             alternativePhone,
             address,
             idProof,
-            deposit: deposit || 0,
             notes,
             referral,
             customerType: customerType || 'individual',
@@ -89,7 +88,7 @@ exports.getRentalCustomerById = async (req, res) => {
 // Update rental customer
 exports.updateRentalCustomer = async (req, res) => {
     try {
-        const { name, email, phone, alternativePhone, address, idProof, deposit, notes, status, referral, customerType, companyName, gstNumber } = req.body;
+        const { name, email, phone, alternativePhone, address, idProof, notes, status, referral, customerType, companyName, gstNumber } = req.body;
 
         const rentalCustomer = await RentalCustomer.findById(req.params.id);
         if (!rentalCustomer) {
@@ -102,7 +101,6 @@ exports.updateRentalCustomer = async (req, res) => {
         if (alternativePhone !== undefined) rentalCustomer.alternativePhone = alternativePhone;
         if (address !== undefined) rentalCustomer.address = address;
         if (idProof) rentalCustomer.idProof = idProof;
-        if (deposit !== undefined) rentalCustomer.deposit = deposit;
         if (notes !== undefined) rentalCustomer.notes = notes;
         if (status) rentalCustomer.status = status;
         if (referral) rentalCustomer.referral = referral;
@@ -261,7 +259,6 @@ exports.importRentalCustomersFromExcel = async (req, res) => {
                         ) || undefined,
                         number: (row['ID Number'] || row['ID Proof Number'] || '').toString().trim()
                     },
-                    deposit: parseFloat(row['Deposit'] || row['Security Deposit'] || 0) || 0,
                     notes: (row['Notes'] || row['Remarks'] || '').toString().trim(),
                     referral: {
                         isGuest: (row['Is Guest'] || row['Guest'] || '').toString().toLowerCase() === 'true',

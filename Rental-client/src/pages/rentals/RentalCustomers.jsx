@@ -43,7 +43,6 @@ const RentalCustomers = () => {
             type: '',
             number: ''
         },
-        deposit: 0,
         notes: '',
         referral: { isGuest: false, source: '', details: '' }
     });
@@ -106,7 +105,6 @@ const RentalCustomers = () => {
                 type: customer.idProof?.type || '',
                 number: customer.idProof?.number || ''
             },
-            deposit: customer.deposit || 0,
             notes: customer.notes || '',
             referral: customer.referral || { isGuest: false, source: '', details: '' }
         });
@@ -184,7 +182,6 @@ const RentalCustomers = () => {
             companyName: '',
             gstNumber: '',
             idProof: { type: '', number: '' },
-            deposit: 0,
             notes: '',
             referral: { isGuest: false, source: '', details: '' }
         });
@@ -268,7 +265,6 @@ const RentalCustomers = () => {
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">ID Proof</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Referral</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Deposit</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
                                     </tr>
                                 </thead>
@@ -311,7 +307,6 @@ const RentalCustomers = () => {
                                                     {customer.status || 'active'}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">₹{customer.deposit || 0}</td>
                                             <td className="px-4 py-3 text-sm">
                                                 <div className="flex space-x-2">
                                                     {isSuperAdmin && (
@@ -387,7 +382,7 @@ const RentalCustomers = () => {
 
                                     <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ID Proof Type</label><select value={formData.idProof.type} onChange={(e) => setFormData({ ...formData, idProof: { ...formData.idProof, type: e.target.value } })} className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all"><option value="">Select Type</option><option value="aadhar">Aadhar</option><option value="pan">PAN</option><option value="driving_license">Driving License</option><option value="passport">Passport</option><option value="voter_id">Voter ID</option></select></div>
                                     <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ID Proof Number</label><input type="text" value={formData.idProof.number} onChange={(e) => setFormData({ ...formData, idProof: { ...formData.idProof, number: e.target.value } })} className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all" /></div>
-                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deposit (₹)</label><input type="number" value={formData.deposit} onChange={(e) => setFormData({ ...formData, deposit: parseFloat(e.target.value) })} min="0" className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all" /></div><div className="md:col-span-2 border-t pt-4 mt-2"><h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Referral</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source</label><div className="flex items-center mb-2"><input type="checkbox" id="isGuest" checked={formData.referral?.isGuest || false} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, isGuest: e.target.checked, source: e.target.checked ? '' : formData.referral.source, details: e.target.checked ? '' : formData.referral.details } })} className="h-4 w-4 text-primary focus:ring-ring border-gray-300 rounded" /><label htmlFor="isGuest" className="ml-2 block text-xs text-gray-500 hover:text-gray-700 cursor-pointer transition-colors">Is Guest (No referral)</label></div><select value={formData.referral?.source || ''} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, source: e.target.value } })} disabled={formData.referral?.isGuest} required={!formData.referral?.isGuest} className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all"><option value="">Select Source</option><option value="Social Media">Social Media</option><option value="Friend/Family">Friend/Family</option><option value="Advertisement">Advertisement</option><option value="Walk-in">Walk-in</option><option value="Existing Customer">Existing Customer</option><option value="Other">Other</option></select></div><div>{formData.referral?.source === 'Existing Customer' ? (<><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Referred By</label><input type="text" value={formData.referral?.details || ''} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, details: e.target.value } })} disabled={formData.referral?.isGuest} list="existingRentalCustomers" placeholder="Search customer..." className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all" /><datalist id="existingRentalCustomers">{customers.filter(c => c._id !== editingCustomer?._id).map(customer => (<option key={customer._id} value={`${customer.name} (${customer.phone})`} />))}</datalist></>) : (<><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Details (Optional)</label><input type="text" value={formData.referral?.details || ''} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, details: e.target.value } })} disabled={formData.referral?.isGuest} placeholder="e.g., Name of referrer" className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all" /></>)}</div></div></div>
+                                    <div className="md:col-span-2 border-t pt-4 mt-2"><h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Referral</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source</label><div className="flex items-center mb-2"><input type="checkbox" id="isGuest" checked={formData.referral?.isGuest || false} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, isGuest: e.target.checked, source: e.target.checked ? '' : formData.referral.source, details: e.target.checked ? '' : formData.referral.details } })} className="h-4 w-4 text-primary focus:ring-ring border-gray-300 rounded" /><label htmlFor="isGuest" className="ml-2 block text-xs text-gray-500 hover:text-gray-700 cursor-pointer transition-colors">Is Guest (No referral)</label></div><select value={formData.referral?.source || ''} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, source: e.target.value } })} disabled={formData.referral?.isGuest} required={!formData.referral?.isGuest} className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all"><option value="">Select Source</option><option value="Social Media">Social Media</option><option value="Friend/Family">Friend/Family</option><option value="Advertisement">Advertisement</option><option value="Walk-in">Walk-in</option><option value="Existing Customer">Existing Customer</option><option value="Other">Other</option></select></div><div>{formData.referral?.source === 'Existing Customer' ? (<><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Referred By</label><input type="text" value={formData.referral?.details || ''} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, details: e.target.value } })} disabled={formData.referral?.isGuest} list="existingRentalCustomers" placeholder="Search customer..." className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all" /><datalist id="existingRentalCustomers">{customers.filter(c => c._id !== editingCustomer?._id).map(customer => (<option key={customer._id} value={`${customer.name} (${customer.phone})`} />))}</datalist></>) : (<><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Details (Optional)</label><input type="text" value={formData.referral?.details || ''} onChange={(e) => setFormData({ ...formData, referral: { ...formData.referral, details: e.target.value } })} disabled={formData.referral?.isGuest} placeholder="e.g., Name of referrer" className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-ring outline-none transition-all" /></>)}</div></div></div>
                                 </div>
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
@@ -436,7 +431,7 @@ const RentalCustomers = () => {
                     onClose={() => setShowImportModal(false)}
                     onImport={handleImport}
                     title="Import Rental Customers"
-                    description="Required: Name, Phone. Optional: Email, Alt Phone, Address, Type, Company, GST, ID Type, ID Number, Deposit, Notes, Source, Referral. Refer to guide for format."
+                    description="Required: Name, Phone. Optional: Email, Alt Phone, Address, Type, Company, GST, ID Type, ID Number, Notes, Source, Referral. Refer to guide for format."
                     sampleData={[
                         {
                             "Name": "John Smith",
@@ -453,7 +448,6 @@ const RentalCustomers = () => {
                             "GST": "",
                             "ID Type": "aadhar",
                             "ID Number": "1234 5678 9012",
-                            "Deposit": 2000,
                             "Notes": "Rent regular items",
                             "Source": "Social Media",
                             "Referral": "Instagram Ad",
