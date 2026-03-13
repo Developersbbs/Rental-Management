@@ -9,9 +9,12 @@ const {
   deleteCustomer,
   getCustomersStats,
   blockCustomer,
-  unblockCustomer
+  unblockCustomer,
+  importCustomersFromExcel
 } = require('../controllers/customerController');
 const { protect, allowRoles } = require('../middlewares/authMiddlewares');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.use(protect);
 
@@ -38,5 +41,8 @@ router.patch('/:id/unblock', allowRoles('superadmin'), unblockCustomer);
 
 // DELETE /api/customers/:id - Delete customer
 router.delete('/:id', allowRoles('superadmin'), deleteCustomer);
+
+// POST /api/customers/import - Import customers from Excel
+router.post('/import', allowRoles('superadmin', 'staff'), upload.single('file'), importCustomersFromExcel);
 
 module.exports = router;

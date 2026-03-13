@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 
-const ImportModal = ({ isOpen, onClose, onImport, title = "Import Bulk Inward", description = "Columns: Product ID (or Name), Quantity, Purchase Cost, Batch Number, Brand, Model, Condition, Notes" }) => {
+const ImportModal = ({
+    isOpen,
+    onClose,
+    onImport,
+    title = "Import Bulk Inward",
+    description = "Columns: Product ID (or Name), Quantity, Purchase Cost, Batch Number, Brand, Model, Condition, Notes",
+    sampleData = null,
+    fileName = "sample_import.csv"
+}) => {
     const [file, setFile] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -9,6 +17,35 @@ const ImportModal = ({ isOpen, onClose, onImport, title = "Import Bulk Inward", 
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
+    };
+
+    const downloadSample = () => {
+        if (!sampleData || !sampleData.length) return;
+
+        const headers = Object.keys(sampleData[0]);
+        const csvContent = [
+            headers.join(','),
+            ...sampleData.map(row =>
+                headers.map(header => {
+                    const value = row[header] === null || row[header] === undefined ? '' : row[header];
+                    // Escape quotes and handle commas
+                    const cell = typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))
+                        ? `"${value.replace(/"/g, '""')}"`
+                        : value;
+                    return cell;
+                }).join(',')
+            )
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', fileName);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const handleSubmit = async (e) => {
@@ -48,6 +85,21 @@ const ImportModal = ({ isOpen, onClose, onImport, title = "Import Bulk Inward", 
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {sampleData && (
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={downloadSample}
+                                className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium flex items-center gap-1"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Download Sample Format
+                            </button>
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Select Spreadsheet File *

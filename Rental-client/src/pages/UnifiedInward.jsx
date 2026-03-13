@@ -1085,6 +1085,35 @@ const UnifiedInward = () => {
                         ? "Columns: Product Name, Quantity, Purchase Cost, Batch Number, Brand, Model, Condition, Notes"
                         : "Columns: Product Name, SKU, Quantity, Purchase Cost, Selling Price, Min Stock, Location"
                     }
+                    sampleData={activeTab === 'rental'
+                        ? [
+                            {
+                                "Product Name": "Sample Rental Item",
+                                "Quantity": 5,
+                                "Purchase Cost": 1000,
+                                "Daily Rate": 50,
+                                "Hourly Rate": 10,
+                                "Monthly Rate": 1200,
+                                "Batch Number": "BATCH001",
+                                "Brand": "BrandName",
+                                "Model Number": "MOD-123",
+                                "Condition": "new",
+                                "Notes": "Sample note"
+                            }
+                        ]
+                        : [
+                            {
+                                "Product Name": "Sample Accessory",
+                                "SKU": "ACC-001",
+                                "Quantity": 20,
+                                "Purchase Cost": 150,
+                                "Selling Price": 250,
+                                "Min Stock": 5,
+                                "Location": "Shelf A1"
+                            }
+                        ]
+                    }
+                    fileName={activeTab === 'rental' ? "rental_inward_sample.csv" : "selling_inward_sample.csv"}
                 />
             </div>
         </div>

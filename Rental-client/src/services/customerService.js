@@ -181,6 +181,25 @@ const customerService = {
       const errorMessage = error.response?.data?.message || error.message || 'Failed to unblock customer';
       throw new Error(errorMessage);
     }
+  },
+
+  /**
+   * Imports customers from an Excel file.
+   * @param {FormData} formData - The form data containing the file to import.
+   * @returns {Promise<Object>} The API response data.
+   */
+  importCustomers: async (formData) => {
+    try {
+      const response = await axios.post('/customers/import', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to import customers';
+      throw new Error(errorMessage);
+    }
   }
 };
 

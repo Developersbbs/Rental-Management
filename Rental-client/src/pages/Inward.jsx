@@ -425,7 +425,19 @@ const Inward = () => {
               setShowImportModal(false);
             }}
             title="Import Bulk Inward"
-            description="Columns: Product Name, Received Quantity, Unit Cost, ordered Quantity, Batch Number, Mfg Date, Expiry Date, Notes"
+            description="Columns: Product Name, SKU, Quantity, Purchase Cost, Selling Price, Min Stock, Location"
+            sampleData={[
+              {
+                "Product Name": "Sample Item",
+                "SKU": "ITEM001",
+                "Quantity": 10,
+                "Purchase Cost": 100,
+                "Selling Price": 150,
+                "Min Stock": 5,
+                "Location": "Godown A"
+              }
+            ]}
+            fileName="accessory_inward_sample.csv"
           />
         </>
       )}

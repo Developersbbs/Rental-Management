@@ -4,7 +4,10 @@ let serviceAccount;
 let bucket;
 
 try {
-  console.log('🔍 Debugging Firebase configuration...');
+  // Ensure environment variables are loaded
+  require('dotenv').config();
+
+  console.log('🔍 Initializing Firebase Admin SDK...');
 
   const fs = require('fs');
   const path = require('path');
@@ -24,42 +27,61 @@ try {
       private_key: process.env.FIREBASE_PRIVATE_KEY
     };
   } else {
-    console.log('❌ FIREBASE_SERVICE_ACCOUNT or individual Firebase variables are not set');
-    throw new Error('Firebase configuration environment variables are missing!');
+    console.log('❌ Firebase configuration not found (tried serviceAccountKey.json and env vars)');
+    throw new Error('Firebase configuration environment variables or serviceAccountKey.json are missing!');
   }
 
   // Validate required fields
   if (!serviceAccount.private_key || !serviceAccount.client_email || !serviceAccount.project_id) {
-    throw new Error('Missing required Firebase service account fields');
+    throw new Error('Missing required Firebase service account fields (private_key, client_email, or project_id)');
   }
 
   // Ensure private key is properly formatted
   if (!serviceAccount.private_key.includes('-----BEGIN PRIVATE KEY-----')) {
-    console.warn('⚠️  Private key may not be properly formatted. Expected PEM format.');
+    console.warn('⚠️  Warning: Firebase private key may not be properly formatted. Expected PEM format.');
   }
 
-  // Convert escaped newlines to real newlines (handle both \n and \\n)
+  // Convert escaped newlines to real newlines
   serviceAccount.private_key = serviceAccount.private_key
-    .replace(/\\\\n/g, '\n')  // Handle double-escaped newlines
-    .replace(/\\n/g, '\n');   // Handle single-escaped newlines
+    .replace(/\\\\n/g, '\n')
+    .replace(/\\n/g, '\n');
 
-  console.log('✅ Firebase service account parsed successfully');
+  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
+  if (!storageBucket) {
+    throw new Error('FIREBASE_STORAGE_BUCKET is not defined in environment variables!');
+  }
+
+  console.log(`📋 Storage Bucket: ${storageBucket}`);
 
   // Initialize Firebase Admin
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    storageBucket: storageBucket,
   });
 
-  console.log('✅ Firebase admin initialized');
+  console.log('✅ Firebase admin initialized successfully');
 
-  // Initialize the storage bucket
-  bucket = admin.storage().bucket();
-  console.log('✅ Firebase storage bucket initialized');
+  // Initialize the storage bucket with safety
+  try {
+    bucket = admin.storage().bucket();
+    console.log(`✅ Firebase storage bucket reference obtained: ${bucket.name}`);
+  } catch (bucketError) {
+    console.warn('⚠️  Warning: Could not initialize Firebase storage bucket:', bucketError.message);
+    // Provide a dummy bucket object to prevent crashes in other modules
+    bucket = {
+      name: 'dummy-bucket',
+      file: () => ({
+        save: async () => { throw new Error('Firebase Storage not initialized'); },
+        makePublic: async () => { throw new Error('Firebase Storage not initialized'); },
+        delete: async () => { throw new Error('Firebase Storage not initialized'); },
+        getFiles: async () => { throw new Error('Firebase Storage not initialized'); },
+      })
+    };
+  }
 } catch (error) {
-  console.error('❌ Firebase initialization error:', error.message);
-  console.error('💡 Make sure FIREBASE_SERVICE_ACCOUNT contains valid JSON with proper private_key formatting');
-  throw error;
+  console.error('❌ Firebase Admin SDK initialization failure:', error.message);
+  // Do not re-throw here to allow the server to boot
+  console.log('ℹ️  Server will continue to boot without Firebase features.');
 }
 
 module.exports = { admin, bucket };

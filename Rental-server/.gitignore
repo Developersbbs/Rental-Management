@@ -49,5 +49,9 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Credentials
+config/serviceAccountKey.json
+config/serviceAccountKey.json.bak
+
 # Optional: Ignore uploads if stored locally (uncomment if needed)
 # uploads/

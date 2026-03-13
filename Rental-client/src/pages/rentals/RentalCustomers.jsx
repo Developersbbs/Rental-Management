@@ -437,6 +437,30 @@ const RentalCustomers = () => {
                     onImport={handleImport}
                     title="Import Rental Customers"
                     description="Required: Name, Phone. Optional: Email, Alt Phone, Address, Type, Company, GST, ID Type, ID Number, Deposit, Notes, Source, Referral. Refer to guide for format."
+                    sampleData={[
+                        {
+                            "Name": "John Smith",
+                            "Phone": "9988776655",
+                            "Email": "john.smith@example.com",
+                            "Alt Phone": "9988776644",
+                            "Street": "456 Oak Ave",
+                            "City": "Metro City",
+                            "State": "Maharashtra",
+                            "Zip Code": "400001",
+                            "Country": "India",
+                            "Type": "individual",
+                            "Company": "",
+                            "GST": "",
+                            "ID Type": "aadhar",
+                            "ID Number": "1234 5678 9012",
+                            "Deposit": 2000,
+                            "Notes": "Rent regular items",
+                            "Source": "Social Media",
+                            "Referral": "Instagram Ad",
+                            "Is Guest": "false"
+                        }
+                    ]}
+                    fileName="rental_customers_sample.csv"
                 />
             </div>
         </div>

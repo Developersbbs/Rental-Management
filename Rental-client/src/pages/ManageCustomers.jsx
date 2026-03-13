@@ -3,8 +3,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { selectUser } from '../redux/features/auth/loginSlice';
-import { Plus, Edit, Trash2, Eye, Users, UserPlus, AlertCircle, Search, Filter, Ban, Lock, Unlock } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Users, UserPlus, AlertCircle, Search, Filter, Ban, Lock, Unlock, Upload } from 'lucide-react';
 import customerService from '../services/customerService';
+import ImportModal from '../components/ImportModal';
 
 const ManageCustomers = () => {
   const user = useSelector(selectUser);
@@ -24,6 +25,8 @@ const ManageCustomers = () => {
   const [blockAction, setBlockAction] = useState('block'); // 'block' or 'unblock'
   const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', 'view'
   const [selectedCustomer, setSelectedCustomer] = useState(null); // Stores the customer data for view/edit
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -148,6 +151,22 @@ const ManageCustomers = () => {
     } catch (err) {
       setError(err.message);
       setShowBlockModal(false); // Close on error too
+    }
+  };
+
+  const handleImport = async (formData) => {
+    setImporting(true);
+    setError('');
+    setSuccess('');
+    try {
+      const result = await customerService.importCustomers(formData);
+      setSuccess(result.message);
+      fetchCustomersAndStats();
+      setShowImportModal(false);
+    } catch (err) {
+      setError(err.message || 'Failed to import customers');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -344,14 +363,23 @@ const ManageCustomers = () => {
             </div>
           </div>
 
-          {/* Add Customer Button */}
-          <button
-            onClick={openCreateModal}
-            className="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Add Customer
-          </button>
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
+            >
+              <Upload className="w-5 h-5 mr-2" />
+              Import Bulk
+            </button>
+            <button
+              onClick={openCreateModal}
+              className="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Add Customer
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1132,6 +1160,39 @@ const ManageCustomers = () => {
           </div>
         </div>
       )}
+
+      {/* Import Modal */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleImport}
+        title="Import Customers"
+        description="Required: Name, Email, Phone. Optional: Company, Street, City, State, ZIP, Country, GST, Type, Credit Limit, Notes, ID Type, ID Number, Guest, Source, Referral. Refer to guide for format."
+        sampleData={[
+          {
+            "Name": "Jane Doe",
+            "Email": "jane@example.com",
+            "Phone": "9876543210",
+            "Alt Phone": "9876543211",
+            "Company": "Doe Corp",
+            "Street": "123 Main St",
+            "City": "Techville",
+            "State": "Karnataka",
+            "Zip Code": "560001",
+            "Country": "India",
+            "GST": "29ABCDE1234F1Z5",
+            "Type": "business",
+            "Credit Limit": 50000,
+            "Notes": "Preferred customer",
+            "ID Type": "pan",
+            "ID Number": "ABCDE1234F",
+            "Is Guest": "false",
+            "Source": "Friend/Family",
+            "Referral": "John Doe"
+          }
+        ]}
+        fileName="customers_sample.csv"
+      />
 
     </div>
   );
