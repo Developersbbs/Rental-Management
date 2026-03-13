@@ -30,7 +30,7 @@ const ImportModal = ({ isOpen, onClose, onImport, title = "Import Bulk Inward", 
             onClose();
         } catch (error) {
             console.error('Import error:', error);
-            const message = typeof error === 'string' ? error : (error.message || 'Import failed');
+            const message = error.response?.data?.message || error.response?.data?.error || error.message || (typeof error === 'string' ? error : 'Import failed');
             toast.error(message);
         } finally {
             setIsLoading(false);

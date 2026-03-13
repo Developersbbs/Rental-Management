@@ -160,8 +160,6 @@ const RentalCustomers = () => {
             setSuccess(result.message);
             fetchCustomers();
             setShowImportModal(false);
-        } catch (err) {
-            setError(err.message || 'Import failed');
         } finally {
             setImporting(false);
         }

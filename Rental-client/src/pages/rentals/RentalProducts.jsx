@@ -5,7 +5,7 @@ import { selectUser } from '../../redux/features/auth/loginSlice';
 import axios from 'axios';
 import rentalProductService from '@/services/rentalProductService';
 import rentalCategoryService from '@/services/rentalCategoryService';
-import { Search, Plus, Edit2, Trash2, Save, X, Filter, Upload, Image as ImageIcon, Clock, DollarSign, Package, Layers, Wrench, Bell } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Save, X, Filter, Upload, Image as ImageIcon, Clock, DollarSign, Package, Layers, Wrench, Bell, RefreshCw } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,12 @@ const RentalProducts = () => {
     // Form states
     const [showModal, setShowModal] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalProducts, setTotalProducts] = useState(0);
+    const [limit] = useState(12); // Items per page
     const [formData, setFormData] = useState({
         name: "",
         description: "",
@@ -61,25 +67,33 @@ const RentalProducts = () => {
     const [activeModalTab, setActiveModalTab] = useState('basic');
 
     useEffect(() => {
-        // Fetch data if token is present in state OR localStorage
-        // This solves the issue where products don't show immediately on refresh
-        // because Redux state hydration might take a moment.
         if (token || localStorage.getItem('token')) {
-            fetchProducts();
+            fetchProducts(1); // Reset to page 1 when filters change
             fetchCategories();
         }
-    }, [token, searchTerm, categoryFilter, ownershipFilter]); // Added ownershipFilter to trigger refetch
+    }, [token, searchTerm, categoryFilter, ownershipFilter]);
 
-    const fetchProducts = async () => {
+    useEffect(() => {
+        if (token || localStorage.getItem('token')) {
+            fetchProducts(currentPage);
+        }
+    }, [currentPage]);
+
+    const fetchProducts = async (page = currentPage) => {
         setLoading(true);
         try {
             const data = await rentalProductService.getAllRentalProducts({
                 search: searchTerm,
                 category: categoryFilter,
-                ownershipType: ownershipFilter, // Add ownership filter
-                status: 'active' // Optional: filter by active status
+                ownershipType: ownershipFilter,
+                status: 'active',
+                page: page,
+                limit: limit
             });
             setProducts(data.rentalProducts || []);
+            setTotalPages(data.totalPages || 1);
+            setTotalProducts(data.total || 0);
+            if (page !== currentPage) setCurrentPage(page);
         } catch (error) {
             console.error('Error fetching rental products:', error);
             toast.error(error.message || 'Failed to fetch products');
@@ -249,14 +263,25 @@ const RentalProducts = () => {
                     <h1 className="section-title">Rental Inventory</h1>
                     <p className="text-muted-foreground mt-1">Manage and track all your rental equipment</p>
                 </div>
-                {isSuperAdmin && (
+                <div className="flex items-center gap-3">
                     <Button
-                        onClick={() => { resetForm(); fetchCategories(); setShowModal(true); }}
-                        className="shadow-sm"
+                        variant="outline"
+                        onClick={() => { fetchProducts(1); fetchCategories(); }}
+                        disabled={loading}
+                        className="shadow-sm bg-white dark:bg-slate-900"
                     >
-                        <Plus className="w-4 h-4 mr-2" /> Add Rental Product
+                        <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
+                        Refresh
                     </Button>
-                )}
+                    {isSuperAdmin && (
+                        <Button
+                            onClick={() => { resetForm(); fetchCategories(); setShowModal(true); }}
+                            className="shadow-sm"
+                        >
+                            <Plus className="w-4 h-4 mr-2" /> Add Rental Product
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Filters */}
@@ -383,9 +408,71 @@ const RentalProducts = () => {
                 ))}
             </div>
 
-            {filteredProducts.length === 0 && !loading && (
+            {products.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                     No rental products found. Click "Add Rental Product" to create one.
+                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-800 border dark:border-slate-700 shadow-sm">
+                    <div className="text-sm text-muted-foreground">
+                        Showing <span className="font-bold text-foreground">{(currentPage - 1) * limit + 1}</span> to <span className="font-bold text-foreground">{Math.min(currentPage * limit, totalProducts)}</span> of <span className="font-bold text-foreground">{totalProducts}</span> products
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1 || loading}
+                            className="rounded-xl h-9 px-4"
+                        >
+                            Previous
+                        </Button>
+                        <div className="flex items-center gap-1">
+                            {[...Array(totalPages)].map((_, i) => {
+                                const pageNum = i + 1;
+                                // Simple logic to show current, first, last, and pages around current
+                                if (
+                                    pageNum === 1 ||
+                                    pageNum === totalPages ||
+                                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                ) {
+                                    return (
+                                        <Button
+                                            key={pageNum}
+                                            variant={currentPage === pageNum ? "default" : "outline"}
+                                            size="icon"
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            disabled={loading}
+                                            className={cn(
+                                                "h-9 w-9 rounded-xl transition-all",
+                                                currentPage === pageNum ? "shadow-md shadow-primary/20" : "bg-transparent"
+                                            )}
+                                        >
+                                            {pageNum}
+                                        </Button>
+                                    );
+                                } else if (
+                                    (pageNum === 2 && currentPage > 3) ||
+                                    (pageNum === totalPages - 1 && currentPage < totalPages - 2)
+                                ) {
+                                    return <span key={pageNum} className="px-1 text-muted-foreground">...</span>;
+                                }
+                                return null;
+                            })}
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages || loading}
+                            className="rounded-xl h-9 px-4"
+                        >
+                            Next
+                        </Button>
+                    </div>
                 </div>
             )}
 

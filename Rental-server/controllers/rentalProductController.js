@@ -44,6 +44,8 @@ exports.createRentalProduct = async (req, res) => {
 exports.getAllRentalProducts = async (req, res) => {
     try {
         const { page = 1, limit = 10, category, status, search, ownershipType } = req.query;
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
 
         const filter = {};
         if (category) filter.category = category;
@@ -55,50 +57,46 @@ exports.getAllRentalProducts = async (req, res) => {
             ];
         }
 
+        // If ownershipType filter is applied, we need to find products that have items of that type
+        if (ownershipType) {
+            const productIdsWithOwnership = await RentalInventoryItem.distinct('rentalProductId', {
+                ownershipType: ownershipType
+            });
+            filter._id = { $in: productIdsWithOwnership };
+        }
+
+        // Get total count for pagination
+        const total = await RentalProduct.countDocuments(filter);
+
+        // Fetch paginated products
         const rentalProductsDocs = await RentalProduct.find(filter)
             .populate('category', 'name')
             .populate('createdBy', 'username')
-            .limit(limit * 1)
-            .skip((page - 1) * limit)
+            .limit(limitNum)
+            .skip((pageNum - 1) * limitNum)
             .sort({ createdAt: -1 })
             .lean();
 
         // Calculate available quantity for each product
-        // Filter products by ownership type if specified
-        const rentalProducts = (await Promise.all(rentalProductsDocs.map(async (product) => {
+        const rentalProducts = await Promise.all(rentalProductsDocs.map(async (product) => {
             const itemFilter = {
                 rentalProductId: product._id,
                 status: 'available'
             };
 
-            // Add ownership type filter if specified
+            // If ownership type is specified, we only count available items of that type
             if (ownershipType) {
                 itemFilter.ownershipType = ownershipType;
             }
 
             const availableCount = await RentalInventoryItem.countDocuments(itemFilter);
-
-            // If ownership type is specified and product has no items of that type, return null
-            if (ownershipType) {
-                const totalItemsOfType = await RentalInventoryItem.countDocuments({
-                    rentalProductId: product._id,
-                    ownershipType: ownershipType
-                });
-                // Skip product if it has no items of this ownership type
-                if (totalItemsOfType === 0) {
-                    return null;
-                }
-            }
-
             return { ...product, availableQuantity: availableCount };
-        }))).filter(p => p !== null); // Remove null entries
-
-        const total = rentalProducts.length; // Use filtered count
+        }));
 
         res.status(200).json({
             rentalProducts,
-            totalPages: Math.ceil(total / limit),
-            currentPage: page,
+            totalPages: Math.ceil(total / limitNum),
+            currentPage: pageNum,
             total
         });
     } catch (err) {
