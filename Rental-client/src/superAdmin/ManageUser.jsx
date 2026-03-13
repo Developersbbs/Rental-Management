@@ -89,7 +89,7 @@ function deleteCookie(name) {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
 }
 
-const PASSWORD_CHANGE_ENABLED = false;
+const PASSWORD_CHANGE_ENABLED = true;
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
