@@ -7,11 +7,14 @@ const Purchase = require('../models/Purchase');
 // @access  Private
 exports.getAllPaymentAccounts = async (req, res) => {
     try {
-        const { status, accountType } = req.query;
+        const { status, accountType, search } = req.query;
 
         const filter = {};
         if (status) filter.status = status;
         if (accountType) filter.accountType = accountType;
+        if (search) {
+            filter.name = { $regex: search, $options: 'i' };
+        }
 
         const accounts = await PaymentAccount.find(filter)
             .populate('createdBy', 'username')

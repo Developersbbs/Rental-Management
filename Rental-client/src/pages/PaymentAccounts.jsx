@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, DollarSign, Building2, Smartphone, Wallet, CreditCard, Eye, X, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, DollarSign, Building2, Smartphone, Wallet, CreditCard, Eye, X, CheckCircle, Search, Filter } from 'lucide-react';
 import paymentAccountService from '../services/paymentAccountService';
 import { toast } from 'react-toastify';
 
@@ -8,6 +8,9 @@ const PaymentAccounts = () => {
     const navigate = useNavigate();
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [typeFilter, setTypeFilter] = useState('');
+    const [statusFilter, setStatusFilter] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
     const [formData, setFormData] = useState({
@@ -22,13 +25,21 @@ const PaymentAccounts = () => {
     });
 
     useEffect(() => {
-        fetchAccounts();
-    }, []);
+        const timer = setTimeout(() => {
+            fetchAccounts();
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm, typeFilter, statusFilter]);
 
     const fetchAccounts = async () => {
         try {
             setLoading(true);
-            const data = await paymentAccountService.getAllPaymentAccounts(); // Show all accounts
+            const params = {
+                search: searchTerm,
+                accountType: typeFilter,
+                status: statusFilter
+            };
+            const data = await paymentAccountService.getAllPaymentAccounts(params);
             console.log('Payment Accounts Data:', data);
             console.log('Accounts:', data.accounts);
             setAccounts(data.accounts || []);
@@ -140,11 +151,49 @@ const PaymentAccounts = () => {
                 </button>
             </div>
 
+            {/* Search and Filters */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 mb-6">
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search by account name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm"
+                        />
+                    </div>
+                    <div className="flex gap-4">
+                        <select
+                            value={typeFilter}
+                            onChange={(e) => setTypeFilter(e.target.value)}
+                            className="px-4 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm"
+                        >
+                            <option value="">All Types</option>
+                            <option value="bank">Bank</option>
+                            <option value="upi">UPI</option>
+                            <option value="cash">Cash</option>
+                            <option value="card_terminal">Card Terminal</option>
+                        </select>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="px-4 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm"
+                        >
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             {/* Total Balance Card */}
             <div className="bg-gradient-to-r from-primary to-primary/80 rounded-xl p-6 mb-6 text-white shadow-lg shadow-primary/20">
                 <p className="text-white/80 text-sm mb-1">Total Balance</p>
-                <h2 className="text-4xl font-bold">₹{totalBalance.toLocaleString()}</h2>
-                <p className="text-white/80 text-sm mt-2">{accounts.length} Active Accounts</p>
+                <h2 className="text-4xl text-white font-bold">₹{totalBalance.toLocaleString()}</h2>
+                <p className="text-white/80 text-sm mt-2">{accounts.length} Results Found</p>
             </div>
 
             {/* Accounts Grid */}

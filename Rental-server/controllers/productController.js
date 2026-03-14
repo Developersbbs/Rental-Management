@@ -24,11 +24,17 @@ const getProducts = async (req, res) => {
 
     // Search functionality
     if (search) {
-      query.$or = [
+      const searchOR = [
         { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { _id: search } // Allow search by product ID
+        { description: { $regex: search, $options: 'i' } }
       ];
+
+      // Only allow search by product ID if it's a valid ObjectId to prevent CastError
+      if (mongoose.Types.ObjectId.isValid(search)) {
+        searchOR.push({ _id: search });
+      }
+
+      query.$or = searchOR;
     }
 
     // Category filter
@@ -306,7 +312,7 @@ const createProduct = async (req, res) => {
       addedDate: new Date(),
       isRental: isRental || false,
       isSellingAccessory: isSellingAccessory || false,
-      rentalPrice: rentalPrice || { hourly: 0, daily: 0 },
+      rentalPrice: rentalPrice || { hourly: 0, daily: 0, weekly: 0, monthly: 0 },
       minRentalHours: minRentalHours ? parseInt(minRentalHours) : 1,
       purchaseCost: purchaseCost ? parseFloat(purchaseCost) : 0
     };

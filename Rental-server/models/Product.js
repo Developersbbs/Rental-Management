@@ -94,6 +94,11 @@ const productSchema = new mongoose.Schema({
       min: 0,
       default: 0
     },
+    weekly: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
     monthly: {
       type: Number,
       min: 0,

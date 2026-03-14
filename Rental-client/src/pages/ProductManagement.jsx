@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -18,6 +18,7 @@ import categoryService from '@/services/categoryService';
 const ProductManagement = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Redux state
   const products = useSelector((state) => state.products?.items || []);
@@ -214,15 +215,30 @@ const ProductManagement = () => {
     });
   };
 
+  // Handle incoming search from dashboard
+  useEffect(() => {
+    if (location.state?.search) {
+      setSearchTerm(location.state.search);
+      // Optional: Clear the state after reading it to avoid re-applying on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   // --- HOOKS ---
 
-  // 1. Fetch all products once when authenticated (without pagination parameters)
+  // 1. Fetch products when filters or pagination change
   useEffect(() => {
     if (token) {
-      // Fetch all products without pagination parameters for client-side pagination
-      dispatch(fetchProducts());
+      dispatch(fetchProducts({
+        search: searchTerm,
+        category: categoryFilter,
+        sortBy: sortBy,
+        sortOrder: sortOrder,
+        page: currentPage,
+        limit: itemsPerPage
+      }));
     }
-  }, [dispatch, token]);
+  }, [dispatch, token, searchTerm, categoryFilter, sortBy, sortOrder, currentPage, itemsPerPage]);
 
   // 2. Handle successful operations by closing modal and resetting form
   useEffect(() => {
@@ -248,61 +264,17 @@ const ProductManagement = () => {
     setCurrentPage(1);
   }, [searchTerm, categoryFilter, sortBy, sortOrder]);
 
-  // --- DATA PROCESSING ---
-
-  // Enhanced filtering and sorting logic
+  // Enhanced filtering and sorting logic - Now primarily handled on the server
   const filteredProducts = useMemo(() => {
-    return safeProducts
-      .filter((product) => {
-        if (!product) return false;
+    // We still keep this as a memoized version of safeProducts for consistency with the rest of the code
+    return safeProducts;
+  }, [safeProducts]);
 
-        const matchesSearch =
-          product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          product._id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          product.productId?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory =
-          !categoryFilter || (product.category && product.category._id ? product.category._id === categoryFilter : product.category === categoryFilter);
-        return matchesSearch && matchesCategory;
-      })
-      .sort((a, b) => {
-        if (!a || !b) return 0;
-
-        let aVal, bVal;
-
-        switch (sortBy) {
-          case "price":
-            aVal = (a.latestBatchPrice ?? a.price) || 0;
-            bVal = (b.latestBatchPrice ?? b.price) || 0;
-            break;
-          case "quantity":
-            aVal = a.quantity || 0;
-            bVal = b.quantity || 0;
-            break;
-          case "category":
-            aVal = (a.category && a.category.name) ? a.category.name.toLowerCase() : (typeof a.category === 'string' ? a.category.toLowerCase() : "");
-            bVal = (b.category && b.category.name) ? b.category.name.toLowerCase() : (typeof b.category === 'string' ? b.category.toLowerCase() : "");
-            break;
-          default:
-            aVal = a[sortBy]?.toString().toLowerCase() || "";
-            bVal = b[sortBy]?.toString().toLowerCase() || "";
-        }
-
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-        }
-
-        return sortOrder === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
-      });
-  }, [safeProducts, searchTerm, categoryFilter, sortBy, sortOrder]);
-
-  // Pagination logic - Fixed implementation
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
+  // Pagination logic - Now handled on the server
+  const totalPages = pagination.pages || 1;
+  const currentItems = filteredProducts;
+  const indexOfFirstItem = (currentPage - 1) * itemsPerPage;
+  const indexOfLastItem = indexOfFirstItem + currentItems.length;
 
   // Pagination helper functions
   const paginate = (pageNumber) => {
@@ -803,7 +775,7 @@ const ProductManagement = () => {
       reorderLevel: 10,
       hsnNumber: "",
       isRental: false,
-      rentalPrice: { hourly: 0, daily: 0, monthly: 0 },
+      rentalPrice: { hourly: 0, daily: 0, weekly: 0, monthly: 0 },
       minRentalHours: 1,
       brand: "",
       modelNumber: "",
@@ -857,7 +829,7 @@ const ProductManagement = () => {
       reorderLevel: product.reorderLevel || 10,
       hsnNumber: product.hsnNumber || "",
       isRental: product.isRental || false,
-      rentalPrice: product.rentalPrice || { hourly: 0, daily: 0 },
+      rentalPrice: product.rentalPrice || { hourly: 0, daily: 0, weekly: 0, monthly: 0 },
       minRentalHours: product.minRentalHours || 1
     });
     setShowModal(true);
@@ -1013,16 +985,18 @@ const ProductManagement = () => {
                   >
                     ✏️
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(product._id, product.name);
-                    }}
-                    className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 rounded transition-colors"
-                    title="Delete Product"
-                  >
-                    🗑️
-                  </button>
+                  {(Number(product.quantity) || 0) <= 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(product._id, product.name);
+                      }}
+                      className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 rounded transition-colors"
+                      title="Delete Product"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1390,14 +1364,16 @@ const ProductManagement = () => {
                               className="bg-blue-100 hover:bg-blue-200 text-blue-800 p-1.5 sm:p-2 rounded-lg transition-colors"
                               title="Edit Product"
                             >✏️</button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(product._id, product.name);
-                              }}
-                              className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 sm:p-2 rounded-lg transition-colors"
-                              title="Delete Product"
-                            >🗑️</button>
+                            {(Number(product.quantity) || 0) <= 0 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(product._id, product.name);
+                                }}
+                                className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 sm:p-2 rounded-lg transition-colors"
+                                title="Delete Product"
+                              >🗑️</button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -1420,16 +1396,16 @@ const ProductManagement = () => {
       )}
 
       {/* Pagination Controls - Fixed Implementation */}
-      {filteredProducts.length > itemsPerPage && (
+      {pagination.total > itemsPerPage && (
         <div className="bg-gray-100 rounded-lg shadow-sm p-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Results Info */}
             <div className="text-sm text-gray-700 dark:text-slate-300">
               Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{" "}
               <span className="font-medium">
-                {Math.min(indexOfLastItem, filteredProducts.length)}
+                {Math.min(indexOfLastItem, pagination.total)}
               </span>{" "}
-              of <span className="font-medium">{filteredProducts.length}</span> results
+              of <span className="font-medium">{pagination.total}</span> results
             </div>
 
             {/* Pagination Controls */}
@@ -1748,16 +1724,18 @@ const ProductManagement = () => {
                       >
                         ✏️ Edit Product
                       </button>
-                      <button
-                        onClick={() => {
-                          handleDelete(selectedProduct._id, selectedProduct.name);
-                          setShowDetailModal(false);
-                          setSelectedProduct(null);
-                        }}
-                        className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
-                      >
-                        🗑️ Delete Product
-                      </button>
+                      {(Number(selectedProduct.quantity) || 0) <= 0 && (
+                        <button
+                          onClick={() => {
+                            handleDelete(selectedProduct._id, selectedProduct.name);
+                            setShowDetailModal(false);
+                            setSelectedProduct(null);
+                          }}
+                          className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
+                        >
+                          🗑️ Delete Product
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -2400,6 +2378,19 @@ const ProductManagement = () => {
                         onChange={(e) => setFormData({
                           ...formData,
                           rentalPrice: { ...formData.rentalPrice, daily: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Weekly Rate (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.rentalPrice?.weekly || 0}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          rentalPrice: { ...formData.rentalPrice, weekly: e.target.value }
                         })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       />

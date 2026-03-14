@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Calendar, User, Package, DollarSign, Save, X, AlertCircle } from 'lucide-react';
+import {
+    Search, Plus, Calendar, User, Package, DollarSign, Save, X,
+    AlertCircle, ChevronRight, ChevronLeft, Check, ShoppingCart,
+    Info, Trash2, IndianRupee, Clock, ChevronDown
+} from 'lucide-react';
 import { toast } from 'react-toastify';
 import rentalCustomerService from '../../services/rentalCustomerService';
 import rentalProductService from '../../services/rentalProductService';
@@ -11,22 +15,27 @@ import productService from '../../services/productService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+
+const STEPS = [
+    { id: 1, title: 'Customer', description: 'Select customer & time', icon: User },
+    { id: 2, title: 'Inventory', description: 'Add products & extras', icon: Package },
+    { id: 3, title: 'Review', description: 'Payment & finalize', icon: ShoppingCart },
+];
 
 const NewRental = () => {
     const navigate = useNavigate();
+    const [currentStep, setCurrentStep] = useState(1);
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [loading, setLoading] = useState(true);
 
-    // const [error, setError] = useState('');
-    // const [success, setSuccess] = useState('');
-
     const [formData, setFormData] = useState({
         customerId: '',
         items: [],
-        outTime: '', // Optional rental start time
+        outTime: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16), // Default to local current time
         expectedReturnTime: '',
         advancePayment: 0,
         accessoriesPayment: 0,
@@ -35,25 +44,40 @@ const NewRental = () => {
 
     const [itemInput, setItemInput] = useState({
         productId: '',
-        productItemId: '', // For individual tracking
-        quantity: 1, // Fallback if not tracking individual items
+        productItemId: '',
+        quantity: 1,
         rentType: 'daily',
-        rentAtTime: 0 // Calculated based on product settings
+        rentAtTime: 0
     });
 
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
     const [availableItems, setAvailableItems] = useState([]);
 
-    // Selling Accessories State
     const [sellingAccessories, setSellingAccessories] = useState([]);
     const [selectedSellingAccessoryId, setSelectedSellingAccessoryId] = useState('');
     const [sellingQuantity, setSellingQuantity] = useState(1);
     const [soldItemsCart, setSoldItemsCart] = useState([]);
 
-    // Pending Items/Payments Modal State
     const [showPendingModal, setShowPendingModal] = useState(false);
     const [pendingDetails, setPendingDetails] = useState(null);
+
+    // Quick Customer Creation
+    const [showQuickCustomerModal, setShowQuickCustomerModal] = useState(false);
+    const [quickCustomerFormData, setQuickCustomerFormData] = useState({
+        name: '',
+        phone: '',
+        customerType: 'individual',
+        referral: { isGuest: true, source: '', details: '' }
+    });
+    const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+
+    // Filtered customers for search
+    const [customerSearch, setCustomerSearch] = useState('');
+    const filteredCustomers = customers.filter(c =>
+        c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+        c.phone.includes(customerSearch)
+    );
 
     useEffect(() => {
         const fetchData = async () => {
@@ -268,13 +292,143 @@ const NewRental = () => {
         }
     };
 
-    const handleSubmit = async (e) => {
+    const handleQuickCustomerSubmit = async (e) => {
         e.preventDefault();
-        // setError('');
-        // setSuccess('');
-
         try {
-            // Format data for API
+            setIsCreatingCustomer(true);
+            const response = await rentalCustomerService.createRentalCustomer(quickCustomerFormData);
+            const newCustomer = response.rentalCustomer;
+
+            // Add to local customers list
+            setCustomers(prev => [...prev, newCustomer]);
+
+            // Select the new customer
+            setFormData(prev => ({ ...prev, customerId: newCustomer._id }));
+
+            toast.success('Customer created and selected!');
+            setShowQuickCustomerModal(false);
+            setQuickCustomerFormData({
+                name: '',
+                phone: '',
+                customerType: 'individual',
+                referral: { isGuest: true, source: '', details: '' }
+            });
+            setCustomerSearch('');
+        } catch (err) {
+            toast.error(err.message || 'Failed to create customer');
+        } finally {
+            setIsCreatingCustomer(false);
+        }
+    };
+
+    const nextStep = () => {
+        if (currentStep === 1 && !formData.customerId) {
+            toast.warning('Please select a customer first');
+            return;
+        }
+        if (currentStep === 1 && !formData.outTime) {
+            toast.warning('Rental start time is required');
+            return;
+        }
+        if (currentStep === 2 && formData.items.length === 0) {
+            toast.warning('Please add at least one item');
+            return;
+        }
+        setCurrentStep(prev => Math.min(prev + 1, 3));
+    };
+
+    const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+
+    const totalRentalRate = formData.items.reduce((sum, item) => sum + item.rentAtTime, 0);
+    const totalDue = totalRentalRate + soldItemsTotal - formData.advancePayment;
+
+    const OrderSummary = ({ className }) => (
+        <Card className={cn("sticky top-24 border-primary/20 bg-primary/[0.02]", className)}>
+            <CardHeader className="pb-4">
+                <CardTitle className="text-xl flex items-center gap-2">
+                    <ShoppingCart className="w-5 h-5 text-primary" /> Order Summary
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {/* Items */}
+                <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Rental Items ({formData.items.length})</p>
+                    {formData.items.length === 0 ? (
+                        <p className="text-sm italic text-muted-foreground px-1">No items added</p>
+                    ) : (
+                        <div className="max-h-40 overflow-y-auto pr-1 custom-scrollbar space-y-1.5">
+                            {formData.items.map((item, idx) => (
+                                <div key={idx} className="flex justify-between items-start text-sm bg-background border border-border p-2 rounded-lg">
+                                    <div className="min-w-0">
+                                        <p className="font-semibold truncate">{item.product.name}</p>
+                                        <p className="text-[10px] text-muted-foreground capitalize">{item.rentType} @ ₹{item.rentAtTime}</p>
+                                    </div>
+                                    <Button
+                                        variant="ghost" size="icon" className="h-6 w-6 text-destructive"
+                                        onClick={() => handleRemoveItem(idx)}
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Selling Items */}
+                {soldItemsCart.length > 0 && (
+                    <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Consumables ({soldItemsCart.length})</p>
+                        <div className="max-h-32 overflow-y-auto pr-1 custom-scrollbar space-y-1.5">
+                            {soldItemsCart.map((item, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-sm px-1">
+                                    <p className="truncate flex-1 pr-2">{item.name} <span className="text-muted-foreground">x{item.quantity}</span></p>
+                                    <p className="font-semibold">₹{item.total}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="border-t border-border pt-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground font-medium">Rental Subtotal</span>
+                        <span className="font-bold">₹{totalRentalRate}</span>
+                    </div>
+                    {soldItemsTotal > 0 && (
+                        <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground font-medium">Accessories</span>
+                            <span className="font-bold">₹{soldItemsTotal}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground font-medium">Advance Paid</span>
+                        <span className="font-bold text-green-600">-₹{formData.advancePayment || 0}</span>
+                    </div>
+
+                    <div className="bg-primary/10 p-3 rounded-xl flex justify-between items-center mt-2">
+                        <span className="font-bold text-primary">Balance Due</span>
+                        <span className="text-xl font-black text-primary">₹{totalDue}</span>
+                    </div>
+                </div>
+            </CardContent>
+            {currentStep === 3 && (
+                <CardFooter>
+                    <Button
+                        onClick={handleSubmit}
+                        className="w-full h-12 text-lg shadow-lg hover:shadow-primary/20"
+                        disabled={formData.items.length === 0 || !formData.customerId}
+                    >
+                        <Save className="w-5 h-5 mr-2" /> Complete Rental
+                    </Button>
+                </CardFooter>
+            )}
+        </Card>
+    );
+
+    const handleSubmit = async (e) => {
+        if (e) e.preventDefault();
+        try {
             const rentalData = {
                 customerId: formData.customerId,
                 items: formData.items.map(item => ({
@@ -285,24 +439,21 @@ const NewRental = () => {
                         accessoryId: acc.accessoryId,
                         name: acc.name,
                         serialNumber: acc.serialNumber,
-                        checkedOutCondition: acc.condition, // Assuming condition at checkout is same as inventory
-                        status: acc.isVerified === false ? 'missing' : 'with_item' // If unchecked, mark as missing? Or just don't include? 
-                        // Actually, if unchecked, it means it wasn't given. So maybe 'missing' or just not in the list.
-                        // Let's assume checked means 'with_item'.
+                        checkedOutCondition: acc.condition,
+                        status: acc.isVerified === false ? 'missing' : 'with_item'
                     })).filter(acc => acc.status === 'with_item') : []
                 })),
-                outTime: formData.outTime || null, // Send null if empty (will use current time)
-                expectedReturnTime: formData.expectedReturnTime || null, // Send null if empty
+                outTime: formData.outTime || null,
+                expectedReturnTime: formData.expectedReturnTime || null,
                 advancePayment: parseFloat(formData.advancePayment) || 0,
                 accessoriesPayment: parseFloat(formData.accessoriesPayment) || 0,
                 notes: formData.notes,
-                soldItems: soldItemsCart // Add sold items to payload
+                soldItems: soldItemsCart
             };
 
             await rentalService.createRental(rentalData);
             toast.success('Rental created successfully!');
 
-            // Reset form
             setFormData({
                 customerId: '',
                 items: [],
@@ -312,9 +463,8 @@ const NewRental = () => {
                 accessoriesPayment: 0,
                 notes: ''
             });
-            setSoldItemsCart([]); // Clear sold items cart
+            setSoldItemsCart([]);
 
-            // Navigate to active rentals after short delay to show success message
             setTimeout(() => {
                 navigate('/rentals/active');
             }, 1500);
@@ -323,98 +473,176 @@ const NewRental = () => {
         }
     };
 
-    if (loading) return <div className="p-6">Loading...</div>;
+    const renderStepContent = () => {
+        switch (currentStep) {
+            case 1:
+                return (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                        <Card className="border-none shadow-none bg-transparent">
+                            <CardHeader className="px-0 pt-0">
+                                <CardTitle className="text-2xl">Customer Information</CardTitle>
+                                <CardDescription>Search for an existing customer and set the rental timeline</CardDescription>
+                            </CardHeader>
+                            <CardContent className="px-0 space-y-6">
+                                <div className="relative">
+                                    <label className="text-sm font-bold text-muted-foreground mb-2 block uppercase tracking-wider">Select Customer</label>
+                                    <div className="relative group">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                        <Input
+                                            placeholder="Type name or phone number..."
+                                            className="pl-11 h-12 text-lg rounded-xl border-border focus:ring-primary/20 shadow-sm"
+                                            value={customerSearch}
+                                            onChange={(e) => setCustomerSearch(e.target.value)}
+                                        />
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                            {customerSearch.length > 0 && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 rounded-lg"
+                                                    onClick={() => setCustomerSearch('')}
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-9 px-3 border-primary/20 text-primary hover:bg-primary/5 font-bold"
+                                                onClick={() => setShowQuickCustomerModal(true)}
+                                            >
+                                                <Plus className="w-4 h-4 mr-1" /> New
+                                            </Button>
+                                        </div>
+                                    </div>
 
-    return (
-        <div className="container mx-auto">
-            <div className="page-header">
-                <div>
-                    <h1 className="section-title">New Rental</h1>
-                    <p className="text-muted-foreground mt-1">Create a new rental agreement for a customer</p>
-                </div>
-            </div>
-
-
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column: Form */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Customer Selection */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl flex items-center">
-                                <User className="w-5 h-5 mr-2 text-primary" /> Customer Details
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Customer</label>
-                                    <select
-                                        value={formData.customerId}
-                                        onChange={(e) => handleCustomerChange(e.target.value)}
-                                        className="premium-input"
-                                    >
-                                        <option value="">-- Select Customer --</option>
-                                        {customers.map(c => (
-                                            <option key={c._id} value={c._id}>{c.name} ({c.phone})</option>
-                                        ))}
-                                    </select>
+                                    {/* Dropdown Results */}
+                                    {customerSearch.length > 0 && (
+                                        <div className="absolute z-[100] w-full mt-2 bg-background border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                {filteredCustomers.length === 0 ? (
+                                                    <div className="p-8 text-center">
+                                                        <User className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-20" />
+                                                        <p className="text-sm text-muted-foreground font-medium">No customers found</p>
+                                                    </div>
+                                                ) : (
+                                                    filteredCustomers.map(c => (
+                                                        <div
+                                                            key={c._id}
+                                                            onClick={() => {
+                                                                handleCustomerChange(c._id);
+                                                                setCustomerSearch(c.name); // Fill input with name
+                                                                // We keep the dropdown open or close it? usually close it.
+                                                                // But the user might want to see selection. 
+                                                                // Let's clear search to "close" it effectively if we check customerSearch.length
+                                                                setCustomerSearch('');
+                                                            }}
+                                                            className={cn(
+                                                                "flex items-center p-4 cursor-pointer transition-colors border-b border-border last:border-0 hover:bg-primary/[0.03]",
+                                                                formData.customerId === c._id ? "bg-primary/[0.05]" : "bg-card"
+                                                            )}
+                                                        >
+                                                            <div className={cn(
+                                                                "w-10 h-10 rounded-full flex items-center justify-center mr-4 transition-colors",
+                                                                formData.customerId === c._id ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                                                            )}>
+                                                                <User className="w-5 h-5" />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="font-bold text-foreground truncate">{c.name}</p>
+                                                                <p className="text-xs text-muted-foreground">{c.phone}</p>
+                                                            </div>
+                                                            {formData.customerId === c._id && (
+                                                                <Check className="w-5 h-5 text-primary" />
+                                                            )}
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                                        Rental Start Time <span className="text-xs">(Optional)</span>
-                                    </label>
-                                    <Input
-                                        type="datetime-local"
-                                        step="1"
-                                        min={null}
-                                        max={null}
-                                        value={formData.outTime}
-                                        onChange={(e) => setFormData({ ...formData, outTime: e.target.value })}
-                                    />
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Leave empty to use current time (any date allowed)
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                                        Expected Return Date <span className="text-xs">(Optional)</span>
-                                    </label>
-                                    <Input
-                                        type="datetime-local"
-                                        step="1"
-                                        min={null}
-                                        max={null}
-                                        value={formData.expectedReturnTime}
-                                        onChange={(e) => setFormData({ ...formData, expectedReturnTime: e.target.value })}
-                                    />
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Leave empty if return date is not specified
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
 
-                    {/* Item Selection */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl flex items-center">
-                                <Package className="w-5 h-5 mr-2 text-primary" /> Add Items
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Category Filter</label>
+                                {/* Selected Customer Card (Persistent if selected) */}
+                                {formData.customerId && (
+                                    <div className="p-6 rounded-2xl border-2 border-primary bg-primary/[0.02] flex items-center justify-between group animate-in zoom-in-95 duration-300">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-primary rounded-2xl text-white shadow-lg shadow-primary/20">
+                                                <User className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-1">Selected Customer</p>
+                                                <p className="text-xl font-black text-foreground">
+                                                    {customers.find(c => c._id === formData.customerId)?.name}
+                                                </p>
+                                                <p className="text-sm text-muted-foreground font-medium">
+                                                    {customers.find(c => c._id === formData.customerId)?.phone}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-xl transition-all"
+                                            onClick={() => {
+                                                setFormData({ ...formData, customerId: '' });
+                                                setCustomerSearch('');
+                                            }}
+                                        >
+                                            <X className="w-4 h-4 mr-2" /> Change
+                                        </Button>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                            <Clock className="w-3.5 h-3.5" /> Start Time <span className="text-destructive">*</span>
+                                        </label>
+                                        <Input
+                                            type="datetime-local"
+                                            className="rounded-xl h-12 bg-background border-border"
+                                            value={formData.outTime}
+                                            onChange={(e) => setFormData({ ...formData, outTime: e.target.value })}
+                                            required
+                                        />
+                                        <p className="text-[10px] text-muted-foreground px-1 italic">This field is required</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                            <Calendar className="w-3.5 h-3.5" /> Expected Return <span className="text-[10px] font-normal italic">(Optional)</span>
+                                        </label>
+                                        <Input
+                                            type="datetime-local"
+                                            className="rounded-xl h-12 bg-background border-border"
+                                            value={formData.expectedReturnTime}
+                                            onChange={(e) => setFormData({ ...formData, expectedReturnTime: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                );
+            case 2:
+                return (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                        {/* Product Picker */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between flex-wrap gap-4 px-1">
+                                <div>
+                                    <h3 className="text-2xl font-bold">Add Items</h3>
+                                    <p className="text-muted-foreground text-sm">Select products to include in this rental</p>
+                                </div>
+                                <div className="flex gap-2 min-w-[200px]">
                                     <select
                                         value={selectedCategory}
                                         onChange={(e) => {
                                             setSelectedCategory(e.target.value);
-                                            setItemInput(prev => ({ ...prev, productId: '' })); // Reset product selection
+                                            setItemInput(prev => ({ ...prev, productId: '' }));
                                         }}
-                                        className="premium-input"
+                                        className="h-10 px-4 rounded-xl border border-border bg-card text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all flex-1"
                                     >
                                         <option value="">All Categories</option>
                                         {categories.map(c => (
@@ -422,195 +650,141 @@ const NewRental = () => {
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Product</label>
-                                    <select
-                                        value={itemInput.productId}
-                                        onChange={(e) => setItemInput({ ...itemInput, productId: e.target.value })}
-                                        className="premium-input"
-                                    >
-                                        <option value="">-- Select Product --</option>
-                                        {products
-                                            .filter(p => p.availableQuantity > 0)
-                                            .filter(p => !selectedCategory || (typeof p.category === 'object' ? p.category._id : p.category) === selectedCategory)
-                                            .map(p => (
-                                                <option key={p._id} value={p._id}>
-                                                    {p.name} ({p.availableQuantity} Available)
-                                                </option>
-                                            ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Specific Item (Optional)</label>
-                                    <select
-                                        value={itemInput.productItemId}
-                                        onChange={(e) => {
-                                            const itemId = e.target.value;
-                                            setItemInput({ ...itemInput, productItemId: itemId });
-                                            const item = availableItems.find(i => i._id === itemId);
-
-                                            if (item && item.status === 'damaged') {
-                                                toast.error(`Cannot rent damaged item. Reason: ${item.damageReason || 'No reason provided'}`);
-                                                // Optional: Clear selection or allow viewing but block 'Add'
-                                                // For now, we allow selecting to see details but 'Add' will be blocked
-                                            }
-
-                                            if (item && item.status === 'maintenance') {
-                                                toast.warning(`Alert: This item is currently under service/maintenance!`, {
-                                                    position: "top-center",
-                                                    autoClose: 5000,
-                                                    hideProgressBar: false,
-                                                    closeOnClick: true,
-                                                    pauseOnHover: true,
-                                                    draggable: true,
-                                                    progress: undefined,
-                                                    style: { background: '#FDE047', color: '#000', fontWeight: 'bold' } // Custom style for visibility
-                                                });
-                                            }
-
-                                            setSelectedInventoryItem(item);
-                                        }}
-                                        className="premium-input"
-                                        disabled={!itemInput.productId}
-                                    >
-                                        <option value="">-- Any Available Item --</option>
-                                        {availableItems.map(item => (
-                                            <option
-                                                key={item._id}
-                                                value={item._id}
-                                                className={
-                                                    item.status === 'damaged' ? 'text-red-500 font-bold' :
-                                                        item.status === 'maintenance' ? 'text-amber-500 font-bold bg-amber-50' : ''
-                                                }
-                                                style={item.status === 'maintenance' ? { color: 'orange', fontWeight: 'bold' } : {}} // Inline style fallback
-                                            >
-                                                {item.uniqueIdentifier} ({item.status === 'damaged' ? 'DAMAGED' : item.status === 'maintenance' ? 'SERVICE IN PROGRESS' : item.condition})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Accessories Verification */}
-                                {selectedInventoryItem && selectedInventoryItem.accessories && selectedInventoryItem.accessories.length > 0 && (
-                                    <div className="col-span-1 md:col-span-2 bg-muted/30 p-4 rounded-xl border border-border">
-                                        <h4 className="font-bold text-foreground mb-4 text-xs uppercase tracking-wider">Verify Accessories</h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {selectedInventoryItem.accessories.map((acc, idx) => (
-                                                <div key={idx} className="flex items-center bg-card p-3 rounded-lg border border-border shadow-sm">
-                                                    <input
-                                                        type="checkbox"
-                                                        defaultChecked={true}
-                                                        onChange={(e) => {
-                                                            const updatedAccessories = selectedInventoryItem.accessories.map((a, i) =>
-                                                                i === idx ? { ...a, isVerified: e.target.checked } : a
-                                                            );
-                                                            setSelectedInventoryItem({ ...selectedInventoryItem, accessories: updatedAccessories });
-                                                        }}
-                                                        className="h-4 w-4 text-primary focus:ring-ring border-border rounded"
-                                                    />
-                                                    <div className="ml-3 text-sm">
-                                                        <span className="font-semibold text-foreground">{acc.name}</span>
-                                                        {acc.serialNumber && (
-                                                            <span className="text-[10px] text-muted-foreground block font-medium">S/N: {acc.serialNumber}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Rent Type</label>
-                                    <select
-                                        value={itemInput.rentType}
-                                        onChange={(e) => {
-                                            const newType = e.target.value;
-                                            const price = selectedProduct && selectedProduct.rentalRate ? selectedProduct.rentalRate[newType] : 0;
-                                            setItemInput({ ...itemInput, rentType: newType, rentAtTime: price });
-                                        }}
-                                        className="premium-input"
-                                    >
-                                        <option value="hourly">Hourly</option>
-                                        <option value="daily">Daily</option>
-                                        <option value="monthly">Monthly</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Rate (₹)</label>
-                                    <Input
-                                        type="number"
-                                        value={itemInput.rentAtTime}
-                                        onChange={(e) => setItemInput({ ...itemInput, rentAtTime: e.target.value })}
-                                    />
-                                </div>
-                                <div className="flex items-end col-span-1 md:col-span-2">
-                                    <Button
-                                        type="button"
-                                        onClick={handleAddItem}
-                                        className="w-full"
-                                    >
-                                        <Plus className="w-4 h-4 mr-2" /> Add Item
-                                    </Button>
-                                </div>
                             </div>
 
-                            {/* Selected Items List */}
-                            {formData.items.length > 0 && (
-                                <div className="mt-6 border border-border rounded-xl overflow-hidden shadow-sm">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="text-[10px] text-muted-foreground uppercase tracking-widest bg-muted/50 font-bold border-b border-border">
-                                            <tr>
-                                                <th className="px-4 py-3">Product</th>
-                                                <th className="px-4 py-3 text-center">Type</th>
-                                                <th className="px-4 py-3 text-right">Rate</th>
-                                                <th className="px-4 py-3 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
-                                            {formData.items.map((item, index) => (
-                                                <tr key={index} className="bg-card hover:bg-muted/30 transition-colors">
-                                                    <td className="px-4 py-3 font-bold text-foreground">{item.product.name}</td>
-                                                    <td className="px-4 py-3 text-center">
-                                                        <span className="badge badge-secondary capitalize">{item.rentType}</span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right font-semibold">₹{item.rentAtTime}</td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleRemoveItem(index)}
-                                                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Step 1: Pick Product</label>
+                                        <select
+                                            value={itemInput.productId}
+                                            onChange={(e) => setItemInput({ ...itemInput, productId: e.target.value })}
+                                            className="w-full h-12 px-4 rounded-xl border border-border bg-card text-base font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                        >
+                                            <option value="">-- Select Product --</option>
+                                            {products
+                                                .filter(p => p.availableQuantity > 0)
+                                                .filter(p => !selectedCategory || (typeof p.category === 'object' ? p.category._id : p.category) === selectedCategory)
+                                                .map(p => (
+                                                    <option key={p._id} value={p._id}>
+                                                        {p.name} ({p.availableQuantity} in stock)
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
 
-                    {/* Selling Accessories Section */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl flex items-center">
-                                <DollarSign className="w-5 h-5 mr-2 text-primary" /> Selling Accessories
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 items-end">
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Select Item</label>
+                                    {itemInput.productId && (
+                                        <div className="space-y-4 animate-in zoom-in-95 duration-200">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Step 2: Selection & Rates</label>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <select
+                                                        value={itemInput.productItemId}
+                                                        onChange={(e) => {
+                                                            const itemId = e.target.value;
+                                                            setItemInput({ ...itemInput, productItemId: itemId });
+                                                            const item = availableItems.find(i => i._id === itemId);
+                                                            if (item?.status === 'damaged') toast.error(`Damaged: ${item.damageReason || 'No reason'}`);
+                                                            setSelectedInventoryItem(item);
+                                                        }}
+                                                        className="h-12 px-4 rounded-xl border border-border bg-card font-medium outline-none"
+                                                    >
+                                                        <option value="">-- Any Item --</option>
+                                                        {availableItems.map(item => (
+                                                            <option key={item._id} value={item._id}>
+                                                                {item.uniqueIdentifier} ({item.condition})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <select
+                                                        value={itemInput.rentType}
+                                                        onChange={(e) => {
+                                                            const type = e.target.value;
+                                                            const price = selectedProduct?.rentalRate?.[type] || 0;
+                                                            setItemInput({ ...itemInput, rentType: type, rentAtTime: price });
+                                                        }}
+                                                        className="h-12 px-4 rounded-xl border border-border bg-card font-medium outline-none"
+                                                    >
+                                                        <option value="hourly">Hourly</option>
+                                                        <option value="daily">Daily</option>
+                                                        <option value="monthly">Monthly</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-3">
+                                                <div className="flex-1 relative">
+                                                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                    <Input
+                                                        type="number"
+                                                        className="pl-9 h-12 rounded-xl text-lg font-bold"
+                                                        value={itemInput.rentAtTime}
+                                                        onChange={(e) => setItemInput({ ...itemInput, rentAtTime: e.target.value })}
+                                                    />
+                                                </div>
+                                                <Button
+                                                    onClick={handleAddItem}
+                                                    className="h-12 px-8 rounded-xl bg-primary text-white font-bold"
+                                                >
+                                                    <Plus className="w-5 h-5 mr-2" /> Add
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="bg-muted/30 rounded-2xl p-6 border-2 border-dashed border-border min-h-[140px] flex flex-col justify-center">
+                                        {selectedInventoryItem && selectedInventoryItem.accessories?.length > 0 ? (
+                                            <>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Include Accessories</p>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {selectedInventoryItem.accessories.map((acc, idx) => (
+                                                        <label key={idx} className="flex items-center gap-3 p-2 bg-card rounded-lg border border-border cursor-pointer hover:bg-muted/50 transition-colors">
+                                                            <input
+                                                                type="checkbox" defaultChecked
+                                                                className="w-4 h-4 accent-primary"
+                                                                onChange={(e) => {
+                                                                    const updated = selectedInventoryItem.accessories.map((a, i) =>
+                                                                        i === idx ? { ...a, isVerified: e.target.checked } : a
+                                                                    );
+                                                                    setSelectedInventoryItem({ ...selectedInventoryItem, accessories: updated });
+                                                                }}
+                                                            />
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-bold truncate">{acc.name}</p>
+                                                                {acc.serialNumber && <p className="text-[10px] text-muted-foreground">S/N: {acc.serialNumber}</p>}
+                                                            </div>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-center opacity-40">
+                                                <Info className="w-8 h-8 mx-auto mb-2" />
+                                                <p className="text-xs font-semibold">No specific item/accessories selected</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Extra Sales */}
+                        <div className="pt-6 border-t border-border">
+                            <div className="flex items-center gap-2 mb-4">
+                                <DollarSign className="w-5 h-5 text-primary" />
+                                <h3 className="text-xl font-bold uppercase tracking-tight">Selling Add-ons</h3>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase px-1">Select Consumable</label>
                                     <select
                                         value={selectedSellingAccessoryId}
                                         onChange={(e) => setSelectedSellingAccessoryId(e.target.value)}
-                                        className="premium-input"
+                                        className="w-full h-12 px-4 rounded-xl border border-border bg-card outline-none"
                                     >
-                                        <option value="">-- Select Consumable --</option>
+                                        <option value="">-- Consumables/Items --</option>
                                         {sellingAccessories.map(acc => (
                                             <option key={acc._id} value={acc._id}>
                                                 {acc.name} (₹{acc.price}) - Stock: {acc.quantity}
@@ -618,215 +792,383 @@ const NewRental = () => {
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Quantity</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase px-1">Qty</label>
                                     <Input
-                                        type="number"
-                                        min="1"
-                                        value={sellingQuantity}
+                                        type="number" className="h-12 rounded-xl"
+                                        min="1" value={sellingQuantity}
                                         onChange={(e) => setSellingQuantity(parseInt(e.target.value) || 1)}
                                     />
                                 </div>
+                                <Button onClick={handleAddSoldItem} variant="outline" className="h-12 rounded-xl border-2 border-primary/20 text-primary font-bold hover:bg-primary/5">
+                                    <Plus className="w-5 h-5 mr-2" /> Add
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 3:
+                return (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-6">
                                 <div>
-                                    <Button
-                                        type="button"
-                                        onClick={handleAddSoldItem}
-                                        className="w-full"
-                                    >
-                                        <Plus className="w-4 h-4 mr-2" /> Add
-                                    </Button>
+                                    <h3 className="text-2xl font-bold mb-1">Final Review</h3>
+                                    <p className="text-muted-foreground text-sm">Update advance payment and add notes</p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                            <IndianRupee className="w-3 h-3" /> Advance Payment (₹)
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            className="h-14 text-2xl font-black rounded-2xl bg-background border-border text-primary"
+                                            value={formData.advancePayment}
+                                            onChange={(e) => setFormData({ ...formData, advancePayment: e.target.value })}
+                                        />
+                                        <p className="text-[10px] text-muted-foreground px-1 italic italic">Enter amount received from customer today</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Internal Notes</label>
+                                        <textarea
+                                            rows="4"
+                                            value={formData.notes}
+                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                            className="w-full p-4 rounded-2xl bg-card border border-border outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm resize-none"
+                                            placeholder="Add any special instructions or observations..."
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Sold Items List */}
-                            {soldItemsCart.length > 0 && (
-                                <div className="border border-border rounded-xl overflow-hidden shadow-sm">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="text-[10px] text-muted-foreground uppercase tracking-widest bg-muted/50 font-bold border-b border-border">
-                                            <tr>
-                                                <th className="px-4 py-3">Item</th>
-                                                <th className="px-4 py-3 text-center">Qty</th>
-                                                <th className="px-4 py-3 text-right">Price</th>
-                                                <th className="px-4 py-3 text-right">Total</th>
-                                                <th className="px-4 py-3 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
-                                            {soldItemsCart.map((item, index) => (
-                                                <tr key={index} className="bg-card hover:bg-muted/30 transition-colors">
-                                                    <td className="px-4 py-3 font-bold text-foreground">{item.name}</td>
-                                                    <td className="px-4 py-3 text-center">{item.quantity}</td>
-                                                    <td className="px-4 py-3 text-right">₹{item.price}</td>
-                                                    <td className="px-4 py-3 text-right font-bold text-primary">₹{item.total}</td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleRemoveSoldItem(index)}
-                                                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            <tr className="bg-muted/20 font-bold">
-                                                <td colSpan="3" className="px-4 py-4 text-right text-xs uppercase tracking-wider text-muted-foreground">Total Selling Cost:</td>
-                                                <td colSpan="2" className="px-4 py-4 text-primary text-lg">₹{soldItemsTotal}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                            <div className="space-y-6">
+                                <div className="bg-muted/10 p-6 rounded-3xl border border-border">
+                                    <h4 className="font-black text-xs uppercase tracking-[0.2em] mb-4 text-muted-foreground/60">Final Checkout Details</h4>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-4 bg-card p-4 rounded-2xl border border-border">
+                                            <div className="bg-primary/10 p-2.5 rounded-full text-primary">
+                                                <User className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Customer</p>
+                                                <p className="font-bold underline decoration-primary/30 underline-offset-4">
+                                                    {customers.find(c => c._id === formData.customerId)?.name || 'N/A'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-4 bg-card p-4 rounded-2xl border border-border">
+                                            <div className="bg-blue-500/10 p-2.5 rounded-full text-blue-500">
+                                                <Clock className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Timeline</p>
+                                                <p className="text-sm font-semibold">
+                                                    {formData.outTime ? new Date(formData.outTime).toLocaleString() : 'Now'}
+                                                    {formData.expectedReturnTime && ` → ${new Date(formData.expectedReturnTime).toLocaleDateString()}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                            </div>
+                        </div>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
+    if (loading) return (
+        <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-muted-foreground font-medium animate-pulse">Initializing Rental System...</p>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="container mx-auto max-w-7xl px-4 py-8">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                <div className="space-y-1">
+                    <h1 className="text-4xl font-black tracking-tight text-foreground flex items-center gap-3">
+                        <div className="bg-primary/10 p-2 rounded-2xl">
+                            <Plus className="w-8 h-8 text-primary" />
+                        </div>
+                        New Rental
+                    </h1>
+                    <p className="text-muted-foreground font-medium ml-1">Create a professional rental agreement in seconds</p>
                 </div>
 
-                {/* Right Column: Summary */}
-                <div className="space-y-6">
-                    <Card className="sticky top-24">
-                        <CardHeader>
-                            <CardTitle className="text-xl flex items-center">
-                                <DollarSign className="w-5 h-5 mr-2 text-primary" /> Payment & Notes
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Rental Advance (₹)</label>
-                                    <Input
-                                        type="number"
-                                        value={formData.advancePayment}
-                                        onChange={(e) => setFormData({ ...formData, advancePayment: e.target.value })}
-                                    />
+                {/* Wizard Progress Bar */}
+                <div className="flex items-center gap-2 bg-muted/20 p-1.5 rounded-2xl border border-border">
+                    {STEPS.map((step, idx) => {
+                        const Icon = step.icon;
+                        const isActive = currentStep === step.id;
+                        const isCompleted = currentStep > step.id;
+
+                        return (
+                            <React.Fragment key={step.id}>
+                                <div
+                                    className={cn(
+                                        "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300",
+                                        isActive ? "bg-background shadow-sm border border-border scale-105" : "opacity-40 grayscale"
+                                    )}
+                                >
+                                    <div className={cn(
+                                        "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                                        isCompleted ? "bg-green-500 text-white" : isActive ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                                    )}>
+                                        {isCompleted ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                                    </div>
+                                    <div className="hidden lg:block text-left">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.1em] leading-none mb-0.5">{step.title}</p>
+                                        <p className="text-[9px] text-muted-foreground leading-none">{step.description}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted-foreground mb-1">Accessories Payment (₹)</label>
-                                    <Input
-                                        type="number"
-                                        value={formData.accessoriesPayment}
-                                        onChange={(e) => setFormData({ ...formData, accessoriesPayment: e.target.value })}
-                                        className="bg-muted/50 cursor-not-allowed font-bold text-primary"
-                                        readOnly
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-1">Notes</label>
-                                <textarea
-                                    rows="3"
-                                    value={formData.notes}
-                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                    className="premium-input min-h-[100px] py-3"
-                                    placeholder="Any additional details..."
-                                />
-                            </div>
-                            <Button
-                                onClick={handleSubmit}
-                                disabled={formData.items.length === 0 || !formData.customerId?.trim()}
-                                className="w-full h-12 text-lg"
-                                variant="default"
-                            >
-                                <Save className="w-5 h-5 mr-2" /> Create Rental
-                            </Button>
-                        </CardContent>
-                    </Card>
+                                {idx < STEPS.length - 1 && (
+                                    <div className="w-4 h-[2px] bg-border mx-1" />
+                                )}
+                            </React.Fragment>
+                        );
+                    })}
                 </div>
             </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+                {/* Main Content Area */}
+                <div className="lg:col-span-8 space-y-10">
+                    <div className="min-h-[500px]">
+                        {renderStepContent()}
+                    </div>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex items-center justify-between pt-8 border-t border-border mt-10">
+                        <Button
+                            variant="ghost"
+                            onClick={prevStep}
+                            disabled={currentStep === 1}
+                            className="h-12 px-6 rounded-xl hover:bg-muted font-bold text-muted-foreground"
+                        >
+                            <ChevronLeft className="w-5 h-5 mr-1" /> Previous Step
+                        </Button>
+
+                        {currentStep < 3 ? (
+                            <Button
+                                onClick={nextStep}
+                                className="h-12 px-10 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+                            >
+                                Continue <ChevronRight className="w-5 h-5 ml-1" />
+                            </Button>
+                        ) : (
+                            <div className="w-20" /> // Spacer for alignment
+                        )}
+                    </div>
+                </div>
+
+                {/* Sticky Summary Sidebar */}
+                <div className="lg:col-span-4 lg:sticky lg:top-24">
+                    <OrderSummary />
+
+                    {/* Helper Tooltip */}
+                    <div className="mt-6 p-4 bg-amber-500/5 rounded-2xl border border-amber-500/10 flex gap-3">
+                        <div className="bg-amber-500/10 p-1.5 h-fit rounded-lg text-amber-600">
+                            <Info className="w-4 h-4" />
+                        </div>
+                        <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                            Need help? Ensure you've selected a customer and added at least one rental item before proceeding to the final review step.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Modals from original logic */}
             {showPendingModal && pendingDetails && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150]">
-                    <Card className="max-w-2xl w-full shadow-2xl border-destructive/20 overflow-hidden">
-                        <CardHeader className="bg-destructive/5 border-b border-destructive/10">
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-[150] animate-in fade-in duration-300">
+                    <Card className="max-w-2xl w-full shadow-2xl border-destructive/20 overflow-hidden rounded-3xl">
+                        <CardHeader className="bg-destructive/5 border-b border-destructive/10 p-6">
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-destructive/10 rounded-full">
-                                        <AlertCircle className="w-6 h-6 text-destructive" />
+                                    <div className="p-3 bg-white rounded-2xl shadow-sm">
+                                        <AlertCircle className="w-8 h-8 text-destructive" />
                                     </div>
                                     <div>
-                                        <CardTitle className="text-xl text-destructive">Pending Alert</CardTitle>
-                                        <CardDescription>Customer: {pendingDetails.customerName}</CardDescription>
+                                        <CardTitle className="text-2xl text-destructive font-black tracking-tight">Pending Attention</CardTitle>
+                                        <CardDescription className="font-medium">Customer: <span className="text-foreground">{pendingDetails.customerName}</span></CardDescription>
                                     </div>
                                 </div>
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="rounded-full hover:bg-destructive/10 text-destructive"
                                     onClick={() => setShowPendingModal(false)}
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-6 h-6" />
                                 </Button>
                             </div>
                         </CardHeader>
-                        <CardContent className="p-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
-                            <div className="space-y-6">
+                        <CardContent className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            <div className="space-y-8">
                                 {pendingDetails.pendingBills.length > 0 && (
-                                    <div className="mb-6">
-                                        <h3 className="text-sm font-bold text-foreground mb-3 flex items-center uppercase tracking-wider">
-                                            <DollarSign className="w-4 h-4 mr-2" /> Pending Payments
-                                        </h3>
-                                        <div className="bg-destructive/5 rounded-xl border border-destructive/10 overflow-hidden">
-                                            <table className="w-full text-sm text-left">
-                                                <thead className="bg-destructive/10 text-destructive font-bold text-[10px] uppercase tracking-widest">
-                                                    <tr>
-                                                        <th className="px-4 py-3">Bill #</th>
-                                                        <th className="px-4 py-3">Date</th>
-                                                        <th className="px-4 py-3 text-right">Due Amount</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-destructive/10">
-                                                    {pendingDetails.pendingBills.map((bill, idx) => (
-                                                        <tr key={bill._id || idx}>
-                                                            <td className="px-4 py-3 font-bold">{bill.billNumber}</td>
-                                                            <td className="px-4 py-3 text-muted-foreground">{new Date(bill.billDate).toLocaleDateString()}</td>
-                                                            <td className="px-4 py-3 text-right text-destructive font-bold">₹{bill.dueAmount?.toLocaleString()}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between border-b pb-2">
+                                            <h3 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center">
+                                                <IndianRupee className="w-4 h-4 mr-2 text-destructive" /> Outstanding Dues
+                                            </h3>
+                                            <span className="text-xs font-bold px-2 py-0.5 bg-destructive/10 text-destructive rounded-full">
+                                                {pendingDetails.pendingBills.length} Bill(s)
+                                            </span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {pendingDetails.pendingBills.map((bill, idx) => (
+                                                <div key={idx} className="flex justify-between items-center bg-destructive/[0.02] p-4 rounded-2xl border border-destructive/10 group hover:bg-destructive/5 transition-colors">
+                                                    <div>
+                                                        <p className="font-bold text-destructive">Bill #{bill.billNumber}</p>
+                                                        <p className="text-xs text-muted-foreground font-medium">{new Date(bill.billDate).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-black text-destructive">₹{bill.dueAmount?.toLocaleString()}</p>
+                                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{bill.paymentStatus}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
 
                                 {pendingDetails.pendingItems.length > 0 && (
-                                    <div>
-                                        <h3 className="text-sm font-bold text-foreground mb-3 flex items-center uppercase tracking-wider">
-                                            <Package className="w-4 h-4 mr-2" /> Unreturned Items
-                                        </h3>
-                                        <div className="bg-amber-500/5 rounded-xl border border-amber-500/10 overflow-hidden">
-                                            <table className="w-full text-sm text-left">
-                                                <thead className="bg-amber-500/10 text-amber-700 font-bold text-[10px] uppercase tracking-widest">
-                                                    <tr>
-                                                        <th className="px-4 py-3">Item Name</th>
-                                                        <th className="px-4 py-3">Rental ID</th>
-                                                        <th className="px-4 py-3">Date</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-amber-500/10">
-                                                    {pendingDetails.pendingItems.map((item, idx) => (
-                                                        <tr key={idx}>
-                                                            <td className="px-4 py-3 font-bold">{item.itemName}</td>
-                                                            <td className="px-4 py-3 text-muted-foreground">{item.rentalId}</td>
-                                                            <td className="px-4 py-3 text-muted-foreground">{new Date(item.rentalDate || new Date()).toLocaleDateString()}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between border-b pb-2">
+                                            <h3 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center">
+                                                <Package className="w-4 h-4 mr-2 text-amber-600" /> Currently Possessed Items
+                                            </h3>
                                         </div>
-                                        <p className="text-xs text-amber-600 mt-3 font-medium px-1">
-                                            * Please account for these items before proceeding.
-                                        </p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {pendingDetails.pendingItems.map((item, idx) => (
+                                                <div key={idx} className="bg-amber-500/[0.03] p-4 rounded-2xl border border-amber-500/10 flex items-start gap-3">
+                                                    <div className="p-2 bg-white rounded-xl shadow-sm text-amber-600">
+                                                        <Package className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-sm text-amber-900 truncate">{item.itemName}</p>
+                                                        <p className="text-[10px] text-amber-700/60 font-medium">Out since: {new Date(item.rentalDate || new Date()).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         </CardContent>
-                        <CardFooter className="bg-muted/30 border-t border-border p-4 flex justify-end">
+                        <CardFooter className="bg-muted/30 border-t border-border p-6 flex justify-end">
                             <Button
                                 onClick={() => setShowPendingModal(false)}
                                 size="lg"
+                                className="px-10 rounded-2xl font-bold bg-destructive text-white hover:bg-destructive/90 shadow-lg shadow-destructive/20"
                             >
-                                Acknowledge & Continue
+                                Understood, Proceed Anyway
                             </Button>
                         </CardFooter>
+                    </Card>
+                </div>
+            )}
+
+            {/* Quick Customer Modal */}
+            {showQuickCustomerModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-300">
+                    <Card className="w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300">
+                        <CardHeader className="space-y-1">
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="text-2xl font-black">Quick Add Customer</CardTitle>
+                                <Button variant="ghost" size="icon" onClick={() => setShowQuickCustomerModal(false)}>
+                                    <X className="w-5 h-5" />
+                                </Button>
+                            </div>
+                            <CardDescription>Create a new customer profile without leaving the rental flow</CardDescription>
+                        </CardHeader>
+                        <form onSubmit={handleQuickCustomerSubmit}>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Full Name *</label>
+                                    <Input
+                                        required
+                                        placeholder="Enter customer name"
+                                        value={quickCustomerFormData.name}
+                                        onChange={(e) => setQuickCustomerFormData(prev => ({ ...prev, name: e.target.value }))}
+                                        className="h-11 rounded-xl"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Phone Number *</label>
+                                    <Input
+                                        required
+                                        type="tel"
+                                        placeholder="Enter phone number"
+                                        value={quickCustomerFormData.phone}
+                                        onChange={(e) => setQuickCustomerFormData(prev => ({ ...prev, phone: e.target.value }))}
+                                        className="h-11 rounded-xl"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Type</label>
+                                        <select
+                                            className="w-full h-11 px-3 border rounded-xl bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                                            value={quickCustomerFormData.customerType}
+                                            onChange={(e) => setQuickCustomerFormData(prev => ({ ...prev, customerType: e.target.value }))}
+                                        >
+                                            <option value="individual">Individual</option>
+                                            <option value="business">Business</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Referral</label>
+                                        <select
+                                            className="w-full h-11 px-3 border rounded-xl bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium"
+                                            value={quickCustomerFormData.referral.isGuest ? 'guest' : 'referred'}
+                                            onChange={(e) => setQuickCustomerFormData(prev => ({
+                                                ...prev,
+                                                referral: {
+                                                    ...prev.referral,
+                                                    isGuest: e.target.value === 'guest',
+                                                    source: e.target.value === 'guest' ? '' : 'Walk-in'
+                                                }
+                                            }))}
+                                        >
+                                            <option value="guest">Guest (None)</option>
+                                            <option value="referred">Walk-in/Referral</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </CardContent>
+                            <CardFooter className="flex gap-3 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="flex-1 h-11 rounded-xl font-bold"
+                                    onClick={() => setShowQuickCustomerModal(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    className="flex-1 h-11 rounded-xl font-bold bg-primary shadow-lg shadow-primary/20 transition-all hover:scale-[1.02]"
+                                    disabled={isCreatingCustomer}
+                                >
+                                    {isCreatingCustomer ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        'Create Customer'
+                                    )}
+                                </Button>
+                            </CardFooter>
+                        </form>
                     </Card>
                 </div>
             )}

@@ -152,11 +152,16 @@ const ServiceRecordForm = ({ onClose, onSuccess, initialData = null }) => {
 
         try {
             setLoading(true);
+
+            // Filter out empty parts before sending to server
+            const cleanedParts = formData.partsReplaced.filter(part => part.partName && part.partName.trim() !== '');
+            const submitData = { ...formData, partsReplaced: cleanedParts };
+
             if (initialData) {
-                await serviceRecordService.updateServiceRecord(initialData._id, formData);
+                await serviceRecordService.updateServiceRecord(initialData._id, submitData);
                 toast.success('Service record updated successfully');
             } else {
-                await serviceRecordService.createServiceRecord(formData);
+                await serviceRecordService.createServiceRecord(submitData);
                 toast.success('Service record created successfully');
             }
             onSuccess();

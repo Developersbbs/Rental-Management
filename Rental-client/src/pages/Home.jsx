@@ -6,7 +6,7 @@ import {
   Package, Users, ShoppingCart, AlertTriangle, TrendingUp, TrendingDown,
   DollarSign, Activity, UserPlus, FileText, Bell, Settings,
   Calendar, Clock, CheckCircle, XCircle, Eye, Edit, Trash2, ArrowRight,
-  ShieldCheck, Database
+  ShieldCheck, Database, Search, Loader2, Image as ImageIcon
 } from 'lucide-react';
 import productService from '../services/productService';
 import billApiService from '../services/billApiService';
@@ -25,9 +25,52 @@ const Home = () => {
   const [dashboardData, setDashboardData] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ products: [], rentalProducts: [] });
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
   useEffect(() => {
     fetchDashboardData();
   }, [user]);
+
+  // Debounced search logic
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        handleSearch();
+      } else {
+        setSearchResults({ products: [], rentalProducts: [] });
+        setShowSearchResults(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearch = async () => {
+    setIsSearching(true);
+    setShowSearchResults(true);
+    try {
+      const [productsRes, rentalProductsRes] = await Promise.all([
+        productService.getAllProducts({ search: searchQuery }),
+        rentalProductService.getAllRentalProducts({ search: searchQuery })
+      ]);
+
+      const products = Array.isArray(productsRes.products) ? productsRes.products : (Array.isArray(productsRes) ? productsRes : []);
+      const rentalProducts = Array.isArray(rentalProductsRes.rentalProducts) ? rentalProductsRes.rentalProducts : (Array.isArray(rentalProductsRes) ? rentalProductsRes : []);
+
+      setSearchResults({
+        products: products.slice(0, 5),
+        rentalProducts: rentalProducts.slice(0, 5)
+      });
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const formatCategory = (category) => {
     if (!category) return 'No Category';
@@ -60,6 +103,101 @@ const Home = () => {
       return 'PCS';
     }
   };
+
+  const renderDashboardSearch = () => (
+    <div className="mt-6 relative max-w-2xl group">
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          {isSearching ? (
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+          ) : (
+            <Search className="h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          )}
+        </div>
+        <input
+          type="text"
+          placeholder="Search for products, rentals, or inventory..."
+          className="w-full pl-11 pr-4 py-3.5 bg-background border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-base group-hover:shadow-md"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onFocus={() => searchQuery.trim().length >= 2 && setShowSearchResults(true)}
+        />
+      </div>
+
+      {/* Floating Search Results Dropdown */}
+      {showSearchResults && (
+        <div className="absolute mt-2 w-full bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="flex items-center justify-between p-3 border-b bg-muted/30">
+            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Search Results</span>
+            <button
+              onClick={() => setShowSearchResults(false)}
+              className="p-1 hover:bg-muted rounded-full transition-colors"
+            >
+              <XCircle className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          <div className="max-h-[400px] overflow-y-auto p-2 space-y-4">
+            {/* Regular Products Section */}
+            {searchResults.products.length > 0 && (
+              <div>
+                <h4 className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary/70 mb-1">Sales Products</h4>
+                <div className="space-y-1">
+                  {searchResults.products.map(product => (
+                    <div
+                      key={product._id}
+                      onClick={() => navigate('/products', { state: { search: product.name } })}
+                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Package className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{product.name}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{formatCategory(product.category)} • ₹{product.price}</p>
+                      </div>
+                      <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rental Products Section */}
+            {searchResults.rentalProducts.length > 0 && (
+              <div>
+                <h4 className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-purple-600/70 mb-1">Rental Products</h4>
+                <div className="space-y-1">
+                  {searchResults.rentalProducts.map(product => (
+                    <div
+                      key={product._id}
+                      onClick={() => navigate('/rentals/products', { state: { search: product.name } })}
+                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                        <Activity className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{product.name}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{product.category?.name || 'Uncategorized'} • ₹{product.rentalRate?.daily}/day</p>
+                      </div>
+                      <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchResults.products.length === 0 && searchResults.rentalProducts.length === 0 && !isSearching && (
+              <div className="py-8 text-center">
+                <p className="text-sm text-muted-foreground">No matching products found.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const fetchDashboardData = async () => {
     try {
@@ -224,20 +362,23 @@ const Home = () => {
   const renderSuperAdminDashboard = () => (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Welcome Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-1">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-1">
+        <div className="flex-1">
           <h1 className="section-title">Welcome back, {user?.username}!</h1>
           <p className="text-muted-foreground mt-1 text-lg">Super Admin Dashboard - Full System Overview</p>
-          <div className="mt-4 flex items-center gap-3">
-            <span className="inline-flex items-center bg-muted/50 px-3 py-1.5 rounded-full text-xs font-semibold text-muted-foreground border border-border">
-              <Clock className="w-3.5 h-3.5 mr-2" />
-              Last updated: {new Date().toLocaleTimeString()}
-            </span>
-          </div>
+
+          {renderDashboardSearch()}
         </div>
-        <div className="flex items-center gap-2 bg-primary/10 px-4 py-2.5 rounded-xl border border-primary/20">
-          <div className="h-2 w-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.5)]"></div>
-          <span className="text-sm font-bold text-primary uppercase tracking-wider">System Active</span>
+
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex items-center gap-2 bg-primary/10 px-4 py-2.5 rounded-xl border border-primary/20">
+            <div className="h-2 w-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.5)]"></div>
+            <span className="text-sm font-bold text-primary uppercase tracking-wider">System Active</span>
+          </div>
+          <span className="inline-flex items-center bg-muted/50 px-3 py-1.5 rounded-full text-[10px] font-bold text-muted-foreground border border-border uppercase tracking-widest">
+            <Clock className="w-3 h-3 mr-2" />
+            Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
         </div>
       </div>
 
@@ -585,20 +726,22 @@ const Home = () => {
   const renderStockManagerDashboard = () => (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Welcome Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-1">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-1">
+        <div className="flex-1">
           <h1 className="section-title">Welcome back, {user?.username}!</h1>
           <p className="text-muted-foreground mt-1 text-lg">Stock Manager Dashboard - Inventory Management</p>
-          <div className="mt-4 flex items-center gap-3">
-            <span className="inline-flex items-center bg-muted/50 px-3 py-1.5 rounded-full text-xs font-semibold text-muted-foreground border border-border">
-              <Clock className="w-3.5 h-3.5 mr-2" />
-              Last updated: {new Date().toLocaleTimeString()}
-            </span>
-          </div>
+          {renderDashboardSearch()}
         </div>
-        <div className="flex items-center gap-2 bg-blue-500/10 px-4 py-2.5 rounded-xl border border-blue-500/20">
-          <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-          <span className="text-sm font-bold text-blue-500 uppercase tracking-wider">Inventory Active</span>
+
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex items-center gap-2 bg-blue-500/10 px-4 py-2.5 rounded-xl border border-blue-500/20">
+            <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+            <span className="text-sm font-bold text-blue-500 uppercase tracking-wider">Inventory Active</span>
+          </div>
+          <span className="inline-flex items-center bg-muted/50 px-3 py-1.5 rounded-full text-[10px] font-bold text-muted-foreground border border-border uppercase tracking-widest">
+            <Clock className="w-3 h-3 mr-2" />
+            Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
         </div>
       </div>
 
@@ -772,20 +915,22 @@ const Home = () => {
   const renderBillCounterDashboard = () => (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Welcome Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-1">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-1">
+        <div className="flex-1">
           <h1 className="section-title">Welcome back, {user?.username}!</h1>
           <p className="text-muted-foreground mt-1 text-lg">Bill Counter Dashboard - Billing & Customer Management</p>
-          <div className="mt-4 flex items-center gap-3">
-            <span className="inline-flex items-center bg-muted/50 px-3 py-1.5 rounded-full text-xs font-semibold text-muted-foreground border border-border">
-              <Clock className="w-3.5 h-3.5 mr-2" />
-              Last updated: {new Date().toLocaleTimeString()}
-            </span>
-          </div>
+          {renderDashboardSearch()}
         </div>
-        <div className="flex items-center gap-2 bg-primary/10 px-4 py-2.5 rounded-xl border border-primary/20">
-          <div className="h-2 w-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.5)]"></div>
-          <span className="text-sm font-bold text-primary uppercase tracking-wider">Billing Active</span>
+
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex items-center gap-2 bg-primary/10 px-4 py-2.5 rounded-xl border border-primary/20">
+            <div className="h-2 w-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.5)]"></div>
+            <span className="text-sm font-bold text-primary uppercase tracking-wider">Billing Active</span>
+          </div>
+          <span className="inline-flex items-center bg-muted/50 px-3 py-1.5 rounded-full text-[10px] font-bold text-muted-foreground border border-border uppercase tracking-widest">
+            <Clock className="w-3 h-3 mr-2" />
+            Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
         </div>
       </div>
 

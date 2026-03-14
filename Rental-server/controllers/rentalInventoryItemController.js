@@ -62,7 +62,7 @@ exports.getItemById = async (req, res) => {
 exports.addItem = async (req, res) => {
     try {
         const { rentalProductId } = req.params;
-        const { uniqueIdentifier, condition, purchaseCost, purchaseDate, batchNumber, notes, accessories, serialNumber } = req.body;
+        const { uniqueIdentifier, condition, purchaseCost, purchaseDate, batchNumber, notes, accessories, serialNumber, hourlyRent, dailyRent, weeklyRent, monthlyRent } = req.body;
 
         // Check if product exists
         const product = await RentalProduct.findById(rentalProductId);
@@ -88,6 +88,10 @@ exports.addItem = async (req, res) => {
             notes,
             serialNumber,
             accessories: accessories || [],
+            hourlyRent: hourlyRent || 0,
+            dailyRent: dailyRent || 0,
+            weeklyRent: weeklyRent || 0,
+            monthlyRent: monthlyRent || 0,
             history: [{
                 action: 'added',
                 details: 'Manually added to inventory',
@@ -110,7 +114,22 @@ exports.addItem = async (req, res) => {
 exports.updateItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, condition, notes, accessories, damageReason, serialNumber } = req.body;
+        const {
+            status,
+            condition,
+            notes,
+            accessories,
+            damageReason,
+            serialNumber,
+            hourlyRent,
+            dailyRent,
+            weeklyRent,
+            monthlyRent,
+            purchaseCost,
+            purchaseDate,
+            batchNumber,
+            uniqueIdentifier // usually uniqueIdentifier shouldn't change, but let's allow it if sent
+        } = req.body;
 
         const item = await RentalInventoryItem.findById(id);
         if (!item) {
@@ -136,6 +155,21 @@ exports.updateItem = async (req, res) => {
         if (accessories) item.accessories = accessories;
         if (damageReason) item.damageReason = damageReason;
         if (serialNumber !== undefined) item.serialNumber = serialNumber;
+        if (hourlyRent !== undefined) item.hourlyRent = hourlyRent;
+        if (dailyRent !== undefined) item.dailyRent = dailyRent;
+        if (weeklyRent !== undefined) item.weeklyRent = weeklyRent;
+        if (monthlyRent !== undefined) item.monthlyRent = monthlyRent;
+        if (purchaseCost !== undefined) item.purchaseCost = purchaseCost;
+        if (purchaseDate !== undefined) item.purchaseDate = purchaseDate;
+        if (batchNumber !== undefined) item.batchNumber = batchNumber;
+        if (uniqueIdentifier && uniqueIdentifier !== item.uniqueIdentifier) {
+            // Check if new identifier is already taken
+            const existingWithId = await RentalInventoryItem.findOne({ uniqueIdentifier, _id: { $ne: id } });
+            if (existingWithId) {
+                return res.status(400).json({ message: 'Unique identifier already exists' });
+            }
+            item.uniqueIdentifier = uniqueIdentifier;
+        }
 
         // Clear damageReason if status is changing from damaged to something else
         if (oldStatus === 'damaged' && status && status !== 'damaged') {

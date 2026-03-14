@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectUser } from '../../redux/features/auth/loginSlice';
 import axios from 'axios';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 const RentalProducts = () => {
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Redux state (only for token)
     const token = useSelector((state) => state.login?.token || null);
@@ -40,7 +41,7 @@ const RentalProducts = () => {
         description: "",
         images: [], // Changed from image string to images array
         category: "",
-        rentalRate: { hourly: 0, daily: 0, monthly: 0 },
+        rentalRate: { hourly: 0, daily: 0, weekly: 0, monthly: 0 },
         minRentalHours: 1,
         specifications: {},
         status: 'active',
@@ -71,36 +72,54 @@ const RentalProducts = () => {
     // Modal Tabs
     const [activeModalTab, setActiveModalTab] = useState('basic');
 
+    // Handle incoming search from dashboard
     useEffect(() => {
-        if (token || localStorage.getItem('token')) {
-            fetchProducts(1); // Reset to page 1 when filters change
-            fetchCategories();
+        if (location.state?.search) {
+            setSearchTerm(location.state.search);
+            // Clear the state after reading it to avoid re-applying on refresh
+            window.history.replaceState({}, document.title);
         }
-    }, [token, searchTerm, categoryFilter, ownershipFilter]);
+    }, [location.state]);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, categoryFilter, ownershipFilter]);
 
     useEffect(() => {
-        if (token || localStorage.getItem('token')) {
+        const activeToken = token || localStorage.getItem('token');
+        if (activeToken) {
             fetchProducts(currentPage);
+            if (categories.length === 0) {
+                fetchCategories();
+            }
         }
-    }, [currentPage]);
+    }, [token, searchTerm, categoryFilter, ownershipFilter, currentPage]);
 
-    const fetchProducts = async (page = currentPage) => {
+    const fetchProducts = async (page) => {
+        const targetPage = page || currentPage;
         setLoading(true);
         try {
-            const data = await rentalProductService.getAllRentalProducts({
+            const params = {
                 search: searchTerm,
                 category: categoryFilter,
                 ownershipType: ownershipFilter,
                 status: 'active',
-                page: page,
+                page: targetPage,
                 limit: limit
-            });
+            };
+
+            const data = await rentalProductService.getAllRentalProducts(params);
+
             setProducts(data.rentalProducts || []);
             setTotalPages(data.totalPages || 1);
             setTotalProducts(data.total || 0);
-            if (page !== currentPage) setCurrentPage(page);
+
+            if (targetPage !== currentPage) {
+                setCurrentPage(targetPage);
+            }
         } catch (error) {
-            console.error('Error fetching rental products:', error);
+            console.error('Error in fetchProducts:', error);
             toast.error(error.message || 'Failed to fetch products');
         } finally {
             setLoading(false);
@@ -117,14 +136,16 @@ const RentalProducts = () => {
         }
     };
 
-    // Filter logic (client-side filtering for immediate feedback, though API supports it too)
-    const filteredProducts = useMemo(() => {
-        return products.filter(p => {
-            const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = !categoryFilter || (p.category?._id === categoryFilter || p.category === categoryFilter);
-            return matchesSearch && matchesCategory;
-        });
-    }, [products, searchTerm, categoryFilter]);
+    // Render-time logging to debug what's being shown
+    console.log('Rendering RentalProducts:', {
+        productsLength: products.length,
+        loading,
+        currentPage,
+        totalPages
+    });
+
+    // Remove client-side filtering as the API already handles it
+    const displayProducts = products;
 
     // Image upload handler
     const handleImageUpload = async (e) => {
@@ -187,7 +208,7 @@ const RentalProducts = () => {
             description: product.description,
             images: product.images || [],
             category: product.category?._id || product.category,
-            rentalRate: product.rentalRate || { hourly: 0, daily: 0 },
+            rentalRate: product.rentalRate || { hourly: 0, daily: 0, weekly: 0, monthly: 0 },
             minRentalHours: product.minRentalHours || 1,
             specifications: product.specifications || {},
             status: product.status || 'active',
@@ -221,7 +242,7 @@ const RentalProducts = () => {
             description: "",
             images: [],
             category: "",
-            rentalRate: { hourly: 0, daily: 0 },
+            rentalRate: { hourly: 0, daily: 0, weekly: 0, monthly: 0 },
             minRentalHours: 1,
             specifications: {},
             status: 'active',
@@ -328,10 +349,10 @@ const RentalProducts = () => {
 
             {/* Product Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredProducts.map(product => (
+                {displayProducts.map(product => (
                     <Card
                         key={product._id}
-                        className="overflow-hidden group flex flex-col cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                        className="overflow-hidden group flex flex-col cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 bg-slate-100 dark:bg-slate-800/50"
                         onClick={() => { setSelectedProduct(product); setDetailImageIndex(0); }}
                     >
                         {/* Product Image */}
@@ -364,15 +385,17 @@ const RentalProducts = () => {
                                     >
                                         <Edit2 className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button
-                                        variant="secondary"
-                                        size="icon"
-                                        onClick={(e) => { e.stopPropagation(); handleDelete(product._id); }}
-                                        className="h-7 w-7 bg-white/90 dark:bg-slate-800/90 text-destructive hover:text-destructive shadow-sm backdrop-blur"
-                                        title="Delete Product"
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
+                                    {(Number(product.availableQuantity) || 0) <= 0 && (
+                                        <Button
+                                            variant="secondary"
+                                            size="icon"
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(product._id); }}
+                                            className="h-7 w-7 bg-white/90 dark:bg-slate-800/90 text-destructive hover:text-destructive shadow-sm backdrop-blur"
+                                            title="Delete Product"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -393,6 +416,14 @@ const RentalProducts = () => {
                                 <div className="text-center p-2 rounded-lg bg-primary/5">
                                     <p className="text-[10px] text-primary/60 uppercase font-semibold mb-0.5">Daily</p>
                                     <p className="text-sm font-bold text-primary">₹{product.rentalRate?.daily || 0}</p>
+                                </div>
+                                <div className="text-center p-2 rounded-lg bg-blue-50/50 dark:bg-blue-900/20">
+                                    <p className="text-[10px] text-blue-600/70 uppercase font-semibold mb-0.5">Weekly</p>
+                                    <p className="text-sm font-bold text-blue-700 dark:text-blue-400">₹{product.rentalRate?.weekly || 0}</p>
+                                </div>
+                                <div className="text-center p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                                    <p className="text-[10px] text-purple-600/70 uppercase font-semibold mb-0.5">Monthly</p>
+                                    <p className="text-sm font-bold text-purple-700 dark:text-purple-400">₹{product.rentalRate?.monthly || 0}</p>
                                 </div>
                             </div>
 
@@ -513,10 +544,11 @@ const RentalProducts = () => {
                             {/* Rental Rates */}
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Rental Rates</p>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {[
                                         { label: 'Hourly', value: selectedProduct.rentalRate?.hourly, color: 'bg-slate-50 dark:bg-slate-800' },
                                         { label: 'Daily', value: selectedProduct.rentalRate?.daily, color: 'bg-primary/5' },
+                                        { label: 'Weekly', value: selectedProduct.rentalRate?.weekly, color: 'bg-blue-50 dark:bg-blue-900/20' },
                                         { label: 'Monthly', value: selectedProduct.rentalRate?.monthly, color: 'bg-purple-50 dark:bg-purple-900/20' },
                                     ].map(r => (
                                         <div key={r.label} className={cn('text-center p-3 rounded-xl', r.color)}>
@@ -793,6 +825,7 @@ const RentalProducts = () => {
                                             {[
                                                 { id: 'hourly', label: 'Hourly Rate', icon: <Clock className="w-4 h-4" /> },
                                                 { id: 'daily', label: 'Daily Rate', icon: <Clock className="w-4 h-4" /> },
+                                                { id: 'weekly', label: 'Weekly Rate', icon: <Clock className="w-4 h-4" /> },
                                                 { id: 'monthly', label: 'Monthly Rate', icon: <Clock className="w-4 h-4" /> },
                                             ].map((rate) => (
                                                 <div key={rate.id} className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">

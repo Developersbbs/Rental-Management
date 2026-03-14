@@ -60,6 +60,9 @@ exports.createServiceRecord = async (req, res) => {
             return res.status(404).json({ message: 'Inventory item not found' });
         }
 
+        // Filter out any empty parts that might have been sent
+        const cleanedParts = (partsReplaced || []).filter(part => part.partName && part.partName.trim() !== '');
+
         // Create service record
         const serviceRecord = new ServiceRecord({
             inventoryItemId,
@@ -67,7 +70,7 @@ exports.createServiceRecord = async (req, res) => {
             serviceDate: serviceDate || Date.now(),
             description,
             issuesFound: issuesFound || [],
-            partsReplaced: partsReplaced || [],
+            partsReplaced: cleanedParts,
             laborCost: laborCost || 0,
             technician,
             technicianName,

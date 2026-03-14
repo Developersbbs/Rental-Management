@@ -154,6 +154,10 @@ const RentalItemDetails = () => {
                                 <span className="text-gray-900 dark:text-white font-medium">₹{item.dailyRent || 0}</span>
                             </div>
                             <div className="flex justify-between">
+                                <span className="text-gray-500 dark:text-gray-400">Weekly</span>
+                                <span className="text-gray-900 dark:text-white font-medium">₹{item.weeklyRent || 0}</span>
+                            </div>
+                            <div className="flex justify-between">
                                 <span className="text-gray-500 dark:text-gray-400">Monthly</span>
                                 <span className="text-gray-900 dark:text-white font-medium">₹{item.monthlyRent || 0}</span>
                             </div>

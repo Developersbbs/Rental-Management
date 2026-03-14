@@ -9,16 +9,16 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
   const dispatch = useDispatch();
-  
+
   // Get auth state from Redux
   const user = useSelector((state) => state.login?.user);
-  
+
   useEffect(() => {
     let isMounted = true;
-    
+
     const checkAuth = async () => {
       if (!isMounted) return;
-      
+
       try {
         // If we have user in Redux, check if we need to validate their session
         if (user) {
@@ -29,22 +29,22 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
             return;
           }
         }
-        
+
         // Always verify the session with the server
         const response = await instance.get('/auth/me');
         if (response.data) {
           // Update Redux store with fresh user data
           const userData = response.data;
-          dispatch(setUser({ 
+          dispatch(setUser({
             user: userData,
-            token: null // Token is in httpOnly cookie
+            token: localStorage.getItem('token') || null // Preserve token from localStorage
           }));
-          
+
           // Check role if required
           if (allowedRoles.length > 0 && !allowedRoles.includes(userData.role)) {
             throw new Error('Unauthorized: Insufficient permissions');
           }
-          
+
           if (isMounted) {
             setIsAuthenticated(true);
           }
@@ -65,9 +65,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
         }
       }
     };
-    
+
     checkAuth();
-    
+
     // Cleanup function to prevent state updates after unmount
     return () => {
       isMounted = false;

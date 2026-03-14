@@ -53,6 +53,7 @@ const rentalInventoryItemSchema = new mongoose.Schema({
     vendorRentalRate: {
         hourly: { type: Number, min: 0, default: 0 },
         daily: { type: Number, min: 0, default: 0 },
+        weekly: { type: Number, min: 0, default: 0 },
         monthly: { type: Number, min: 0, default: 0 }
     },
     vendorReturnDate: {
@@ -81,6 +82,11 @@ const rentalInventoryItemSchema = new mongoose.Schema({
         default: 0
     },
     dailyRent: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    weeklyRent: {
         type: Number,
         min: 0,
         default: 0

@@ -103,7 +103,7 @@ const FinancialReports = () => {
                             <span className="text-[10px] font-bold uppercase tracking-widest bg-white/20 px-2 py-1 rounded">Total</span>
                         </div>
                         <p className="text-indigo-100 text-sm font-medium">Total Revenue</p>
-                        <h3 className="text-3xl font-black">{formatCurrency(revenueData.totalRevenue)}</h3>
+                        <h3 className="text-3xl text-white font-black">{formatCurrency(revenueData.totalRevenue)}</h3>
                         <p className="mt-4 text-xs text-indigo-100 font-medium">For selected period</p>
                     </div>
                 </div>

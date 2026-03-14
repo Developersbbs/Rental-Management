@@ -47,6 +47,7 @@ const ManageRentalItems = () => {
         serialNumber: '',
         hourlyRent: '',
         dailyRent: '',
+        weeklyRent: '',
         monthlyRent: '',
         accessories: [],
         damageReason: ''
@@ -59,6 +60,7 @@ const ManageRentalItems = () => {
     // View Scrap Details state
     const [showScrapDetailsModal, setShowScrapDetailsModal] = useState(false);
     const [scrapDetails, setScrapDetails] = useState(null);
+    const [selectedItems, setSelectedItems] = useState([]);
 
     useEffect(() => {
         fetchData();
@@ -105,8 +107,10 @@ const ManageRentalItems = () => {
             batchNumber: item.batchNumber || '',
             notes: item.notes || '',
             serialNumber: item.serialNumber || '',
+            // If item has a specific rent, show it. Otherwise keep empty to show product price in placeholder.
             hourlyRent: item.hourlyRent || '',
             dailyRent: item.dailyRent || '',
+            weeklyRent: item.weeklyRent || '',
             monthlyRent: item.monthlyRent || '',
             accessories: item.accessories || [],
             damageReason: item.damageReason || ''
@@ -132,10 +136,93 @@ const ManageRentalItems = () => {
             try {
                 await rentalInventoryItemService.deleteItem(id);
                 toast.success('Rental item deleted successfully');
+                setSelectedItems(prev => prev.filter(itemId => itemId !== id));
                 fetchData();
             } catch (err) {
                 toast.error('Failed to delete rental item');
             }
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (window.confirm(`Are you sure you want to PERMANENTLY delete ${selectedItems.length} rental items? This action cannot be undone.`)) {
+            try {
+                setLoading(true);
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const id of selectedItems) {
+                    try {
+                        await rentalInventoryItemService.deleteItem(id);
+                        successCount++;
+                    } catch (err) {
+                        failCount++;
+                    }
+                }
+
+                if (successCount > 0) toast.success(`${successCount} items deleted successfully`);
+                if (failCount > 0) toast.error(`Failed to delete ${failCount} items`);
+
+                setSelectedItems([]);
+                fetchData();
+            } catch (err) {
+                toast.error('Bulk delete failed');
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    const handleBulkArchiveToggle = async (isArchiving) => {
+        const action = isArchiving ? 'archive' : 'restore';
+        if (window.confirm(`Are you sure you want to ${action} ${selectedItems.length} selected items?`)) {
+            try {
+                setLoading(true);
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const id of selectedItems) {
+                    try {
+                        const item = displayItems.find(item => item._id === id);
+                        if (!isArchiving && item && item.status === 'rented') {
+                            // Backend already handles this but for clarity
+                            failCount++;
+                            continue;
+                        }
+                        await rentalInventoryItemService.toggleArchiveStatus(id);
+                        successCount++;
+                    } catch (err) {
+                        failCount++;
+                    }
+                }
+
+                if (successCount > 0) toast.success(`${successCount} items ${isArchiving ? 'archived' : 'restored'} successfully`);
+                if (failCount > 0) toast.error(`Failed to ${action} ${failCount} items`);
+
+                setSelectedItems([]);
+                fetchData();
+            } catch (err) {
+                toast.error(`Bulk ${action} failed`);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    const toggleSelectItem = (id) => {
+        setSelectedItems(prev =>
+            prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
+        );
+    };
+
+    const handleSelectAllOnPage = () => {
+        const currentPageIds = currentItems.map(item => item._id);
+        const allSelected = currentPageIds.every(id => selectedItems.includes(id));
+
+        if (allSelected) {
+            setSelectedItems(prev => prev.filter(id => !currentPageIds.includes(id)));
+        } else {
+            setSelectedItems(prev => [...new Set([...prev, ...currentPageIds])]);
         }
     };
 
@@ -201,6 +288,7 @@ const ManageRentalItems = () => {
             serialNumber: '',
             hourlyRent: '',
             dailyRent: '',
+            weeklyRent: '',
             monthlyRent: '',
             accessories: [],
             damageReason: ''
@@ -462,6 +550,14 @@ const ManageRentalItems = () => {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-gray-50 dark:bg-slate-700">
                         <tr>
+                            <th className="px-6 py-3 text-left">
+                                <input
+                                    type="checkbox"
+                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    checked={currentItems.length > 0 && currentItems.every(item => selectedItems.includes(item._id))}
+                                    onChange={handleSelectAllOnPage}
+                                />
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Unique ID</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Serial No</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
@@ -478,7 +574,15 @@ const ManageRentalItems = () => {
                             </tr>
                         ) : (
                             currentItems.map((item) => (
-                                <tr key={item._id}>
+                                <tr key={item._id} className={selectedItems.includes(item._id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            checked={selectedItems.includes(item._id)}
+                                            onChange={() => toggleSelectItem(item._id)}
+                                        />
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <button
                                             onClick={() => navigate(`/rentals/items/${item._id}`)}
@@ -574,6 +678,46 @@ const ManageRentalItems = () => {
                     >
                         Next →
                     </button>
+                </div>
+            )}
+
+            {/* Bulk Actions Floating Bar */}
+            {selectedItems.length > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 shadow-2xl rounded-2xl border border-blue-100 dark:border-slate-700 p-4 min-w-[320px] md:min-w-[500px] z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300 flex items-center justify-between gap-6">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-500/30">
+                            {selectedItems.length}
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">Items Selected</p>
+                            <button
+                                onClick={() => setSelectedItems([])}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                            >
+                                Clear Selection
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleBulkArchiveToggle(viewMode === 'active')}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${viewMode === 'active'
+                                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                : 'bg-green-50 text-green-700 hover:bg-green-100'
+                                }`}
+                        >
+                            {viewMode === 'active' ? <Archive className="w-4 h-4" /> : <History className="w-4 h-4" />}
+                            {viewMode === 'active' ? 'Archive' : 'Restore'}
+                        </button>
+                        <button
+                            onClick={handleBulkDelete}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-xl font-bold text-sm transition-all"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -722,39 +866,51 @@ const ManageRentalItems = () => {
                                     <h4 className="font-medium text-gray-900 dark:text-white mb-3">Rental Rates</h4>
                                     <div className="grid grid-cols-3 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hourly Rate (₹)</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hourly Rent (₹)</label>
                                             <input
                                                 type="number"
                                                 value={formData.hourlyRent}
                                                 onChange={(e) => setFormData({ ...formData, hourlyRent: e.target.value })}
-                                                className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                                                 min="0"
                                                 step="0.01"
-                                                placeholder="0.00"
+                                                placeholder={product?.rentalRate?.hourly || "0.00"}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Daily Rate (₹)</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Daily Rent (₹)</label>
                                             <input
                                                 type="number"
                                                 value={formData.dailyRent}
                                                 onChange={(e) => setFormData({ ...formData, dailyRent: e.target.value })}
-                                                className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                                                 min="0"
                                                 step="0.01"
-                                                placeholder="0.00"
+                                                placeholder={product?.rentalRate?.daily || "0.00"}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monthly Rate (₹)</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Weekly Rent (₹)</label>
+                                            <input
+                                                type="number"
+                                                value={formData.weeklyRent}
+                                                onChange={(e) => setFormData({ ...formData, weeklyRent: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                                                min="0"
+                                                step="0.01"
+                                                placeholder={product?.rentalRate?.weekly || "0.00"}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monthly Rent (₹)</label>
                                             <input
                                                 type="number"
                                                 value={formData.monthlyRent}
                                                 onChange={(e) => setFormData({ ...formData, monthlyRent: e.target.value })}
-                                                className="w-full p-2 border rounded dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                                                 min="0"
                                                 step="0.01"
-                                                placeholder="0.00"
+                                                placeholder={product?.rentalRate?.monthly || "0.00"}
                                             />
                                         </div>
                                     </div>
